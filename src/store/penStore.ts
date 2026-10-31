@@ -2,27 +2,62 @@ import { defineStore } from 'pinia';
 import { ref, shallowRef } from 'vue';
 import type { ToolType, nWbSpPenOptions, SerializedPage } from '@/nWb';
 
-/** 每个 id 一个独立的 store 实例 */
+export type PanelKind = 'pen' | 'eraser' | null;
+export type PanelSide = 'left' | 'right' | 'center';
+
+/** 组件里 storeId 的 fallback 值 */
+export const DEFAULT_STORE_ID = 'default';
+
+/** provide / inject 的 key：画笔 store id */
+export const PANEL_STORE_KEY = 'nwb:storeId';
+
+/** provide / inject 的 key：nWb 实例（用于缩略图渲染等） */
+export const NWB_INSTANCE_KEY = 'nwb:instance';
+
 function createPenStore(id: string) {
     return defineStore(`pen-${id}`, () => {
-        // 画笔 UI 配置
-        const color = ref('#1a1a1a');
-        const thick = ref(3);
-        const tool  = ref<ToolType>('pen');
+        // === 画笔 ===
+        const color = ref('#1C1C1E');
+        const thick = ref(4);
+        const tool = ref<ToolType>('pen');
         const spPen = shallowRef<nWbSpPenOptions | null>(null);
 
-        // 视图 / 页面
+        // === 橡皮擦 ===
+        const eraserSize = ref(30);
+        const eraserImage = ref<string | null>(null);
+        const palmAreaSize = ref(500);
+
+        // === 页面 / 视图 ===
         const pageIndex = ref(1);
         const pageCount = ref(1);
-        const scale     = ref(1);
+        const scale = ref(1);
         const hasSelection = ref(false);
+        const canUndo = ref(false);
+        const canRedo = ref(false);
 
-        // ★ 画板内容快照（用于跨路由保留，见 useNwb 的 persist 选项）
+        /** 主画布视口尺寸（CSS px） */
+        const viewW = ref(1);
+        const viewH = ref(1);
+
+        // === 面板 ===
+        const panelKind = ref<PanelKind>(null);
+        const panelSide = ref<PanelSide>('center');
+        const customColors = ref<string[]>([]);
+
+        // === 页面抽屉 ===
+        const drawerOpen = ref(false);
+
+        // === 跨路由快照 ===
         const snapshot = shallowRef<SerializedPage[] | null>(null);
 
         return {
             color, thick, tool, spPen,
+            eraserSize, eraserImage, palmAreaSize,
             pageIndex, pageCount, scale, hasSelection,
+            canUndo, canRedo,
+            viewW, viewH,
+            panelKind, panelSide, customColors,
+            drawerOpen,
             snapshot,
         };
     });
@@ -31,11 +66,7 @@ function createPenStore(id: string) {
 type PenStoreHook = ReturnType<typeof createPenStore>;
 const cache = new Map<string, PenStoreHook>();
 
-/**
- * 按 id 获取 store 实例。
- * 相同 id 会拿到同一个 store；不同 id 完全隔离。
- */
-export function usePenStore(id = 'default') {
+export function usePenStore(id: string = DEFAULT_STORE_ID) {
     let useStore = cache.get(id);
     if (!useStore) {
         useStore = createPenStore(id);
@@ -44,9 +75,6 @@ export function usePenStore(id = 'default') {
     return useStore();
 }
 
-/** 可选：某个 id 不再使用时手动释放，避免长期累积 */
 export function releasePenStore(id: string): void {
     cache.delete(id);
-    // ⚠️ 注意：Pinia 内部还会持有该 store 的状态，直到整个 pinia 实例销毁。
-    // 一般场景不需要调这个。
 }

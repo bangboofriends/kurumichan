@@ -4,10 +4,10 @@ import {usePenStore} from '@/store/penStore';
 import {useNwb} from '@/composables/useNwb';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
-const pen = usePenStore('pageA');                       // ★
+const pen = usePenStore('dwt1');                       // ★
 const {actions} = useNwb({
   canvasRef,
-  storeId: 'pageA',                                     // ★
+  storeId: 'dwt1',                                     // ★
   effect: 'slide',
   persist: false,   // 用 KeepAlive 的话不用开
 });

@@ -13,6 +13,18 @@ const routes: RouteRecordRaw[] = [
         component: ()=>import("@/pages/DrawTest.vue"),
         meta:{title:"白板"}
     },
+    {
+        path:'/debugs/testtap',
+        name:'ttt1',
+        component: ()=>import("@/pages/TapTest.vue"),
+        meta:{title:"白板"}
+    },
+    {
+        path:'/homework',
+        name:'hwb',
+        component: ()=>import("@/pages/HomeWorkBoard.vue"),
+        meta:{title:"作业板"}
+    },
 ];
 
 const router = createRouter({history: createWebHistory(import.meta.env.BASE_URL), routes});
