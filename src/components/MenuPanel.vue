@@ -3,12 +3,27 @@
     <div class="panel-body">
       <button :disabled="busy" class="row" @click="handleExport">
         <span class="i-mingcute-download-2-line" style="font-size: 20px"/>
-        <span>{{ busy ? '处理中…' : '导出' }}</span>
+        <span>{{ busy ? '处理中…' : '保存' }}</span>
       </button>
-      <button :disabled="busy" class="row" @click="handleImport">
-        <span class="i-mingcute-upload-2-line" style="font-size: 20px"/>
-        <span>{{ busy ? '处理中…' : '导入' }}</span>
-      </button>
+      <div ref="importWrapRef" class="import-wrap">
+        <button :disabled="busy" class="row" @click="toggleImportMenu">
+          <span class="i-mingcute-upload-2-line" style="font-size: 20px"/>
+          <span>导入</span>
+          <span :class="popSide === 'right' ? 'i-mingcute-right-line' : 'i-mingcute-left-line'" class="arrow"/>
+        </button>
+        <Transition name="submenu">
+          <div v-if="importMenuOpen" :class="`pop-${popSide}`" class="import-menu">
+            <button :disabled="busy" class="row" @click="handleImportKrmc">
+              <span class="i-mingcute-file-line" style="font-size: 20px"/>
+              <span>导入krmc</span>
+            </button>
+            <button :disabled="busy" class="row" @click="handleImportImage">
+              <span class="i-mingcute-pic-line" style="font-size: 20px"/>
+              <span>导入图片</span>
+            </button>
+          </div>
+        </Transition>
+      </div>
       <button class="row" @click="openSub('about')">
         <span class="i-mingcute-information-line" style="font-size: 20px"/>
         <span>关于</span>
@@ -27,7 +42,7 @@
 </template>
 
 <script lang="ts" setup>
-import {inject, ref} from 'vue';
+import {computed, inject, onBeforeUnmount, onMounted, ref} from 'vue';
 import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
 import {loadKrmc, renderKrmcThumbnail, saveKrmc} from '@/nWb/krmc';
 
@@ -45,6 +60,28 @@ const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
 /** 导出 / 导入中，避免重复触发 */
 const busy = ref(false);
 
+/** 导入子菜单开关 */
+const importMenuOpen = ref(false);
+const importWrapRef = ref<HTMLElement | null>(null);
+
+/** 子菜单弹出方向：面板在屏幕右侧时向左弹，避免超出屏幕 */
+const popSide = computed(() => (props.side === 'right' ? 'left' : 'right'));
+
+function toggleImportMenu() {
+  importMenuOpen.value = !importMenuOpen.value;
+}
+
+function onWindowPointerDown(e: PointerEvent) {
+  if (!importMenuOpen.value) return;
+  const el = importWrapRef.value;
+  if (el && e.target instanceof Node && !el.contains(e.target)) {
+    importMenuOpen.value = false;
+  }
+}
+
+onMounted(() => window.addEventListener('pointerdown', onWindowPointerDown, true));
+onBeforeUnmount(() => window.removeEventListener('pointerdown', onWindowPointerDown, true));
+
 async function handleExport() {
   const inst = nwbRef?.value;
   if (!inst || busy.value) return;
@@ -53,7 +90,7 @@ async function handleExport() {
   try {
     const pages = inst.exportPages();
     if (!pages.length) {
-      console.warn('[MenuPanel] 导出：无页面内容');
+      console.warn('[MenuPanel] 保存：无页面内容');
       return;
     }
 
@@ -83,15 +120,15 @@ async function handleExport() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (e) {
-    console.error('[MenuPanel] 导出失败:', e);
-    alert(`导出失败：${(e as Error).message}`);
+    console.error('[MenuPanel] 保存失败:', e);
+    alert(`保存失败：${(e as Error).message}`);
   } finally {
     busy.value = false;
     pen.panelKind = null;
   }
 }
 
-async function handleImport() {
+async function handleImportKrmc() {
   const inst = nwbRef?.value;
   if (!inst || busy.value) return;
 
@@ -112,12 +149,48 @@ async function handleImport() {
         return;
       }
       console.log(
-          `[MenuPanel] 导入 ${pages.length} 页，格式 v${manifest.version}`,
+          `[MenuPanel] 导入 ${pages.length} 页（覆盖全部页面），格式 v${manifest.version}`,
       );
       await inst.importPages(pages);
     } catch (e) {
       console.error('[MenuPanel] 导入失败:', e);
       alert(`导入失败：${(e as Error).message}`);
+    } finally {
+      busy.value = false;
+      pen.panelKind = null;
+      document.body.removeChild(input);
+    }
+  };
+
+  document.body.appendChild(input);
+  input.click();
+}
+
+async function handleImportImage() {
+  const inst = nwbRef?.value;
+  if (!inst || busy.value) return;
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    busy.value = true;
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      await inst.addImage(dataUrl);
+    } catch (e) {
+      console.error('[MenuPanel] 导入图片失败:', e);
+      alert(`导入图片失败：${(e as Error).message}`);
     } finally {
       busy.value = false;
       pen.panelKind = null;
@@ -150,7 +223,7 @@ function openSub(kind: 'about' | 'settings') {
   border-radius: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
   0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
+  overflow: visible;
   z-index: 99;
   color: #1D1D1F;
   font-family: inherit;
@@ -220,5 +293,52 @@ function openSub(kind: 'about' | 'settings') {
   height: 0.5px;
   background: rgba(0, 0, 0, 0.08);
   margin: 6px 8px;
+}
+
+.import-wrap {
+  position: relative;
+}
+
+.import-menu {
+  position: absolute;
+  top: 0;
+  width: 180px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
+  0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  z-index: 100;
+}
+
+.import-menu.pop-right {
+  left: calc(100% + 6px);
+  transform-origin: left center;
+}
+
+.import-menu.pop-left {
+  right: calc(100% + 6px);
+  transform-origin: right center;
+}
+
+.arrow {
+  margin-left: auto;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.submenu-enter-active,
+.submenu-leave-active {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.submenu-enter-from,
+.submenu-leave-to {
+  opacity: 0;
+  transform: scale(0.94);
 }
 </style>

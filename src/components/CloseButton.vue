@@ -1,45 +1,31 @@
 <template>
   <button
       ref="btnRef"
-      :aria-label="state === 'idle' ? '关闭' : '按住关闭'"
-      :class="{ arming: state === 'arming', holding: state === 'holding' }"
       class="close-btn"
+      :class="{
+      arming: state === 'arming',
+      holding: state === 'holding',
+    }"
+      :style="{ '--progress': `${holdProgress * 360}deg` }"
       @click="onClick"
-      @pointercancel="onPointerUp"
       @pointerdown="onPointerDown"
-      @pointerleave="onPointerUp"
       @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+      @pointerleave="onPointerUp"
+      :aria-label="state === 'idle' ? '关闭' : '按住关闭'"
   >
-    <span v-if="state !== 'holding'" class="i-mingcute-close-line" style="font-size: 18px"/>
+    <span v-if="state !== 'holding'" class="i-mingcute-close-line close-icon" />
     <span class="label">{{ label }}</span>
-
-    <svg
-        v-if="state === 'holding'"
-        class="progress-ring"
-        preserveAspectRatio="none"
-        viewBox="0 0 52 52"
-    >
-      <rect
-          fill="none" height="50" rx="24" ry="24" stroke="rgba(255, 59, 48, 0.15)" stroke-width="2"
-          width="50" x="1" y="1"
-      />
-      <rect
-          :stroke-dasharray="PERIMETER" :stroke-dashoffset="dashOffset" fill="none" height="50" rx="24" ry="24"
-          stroke="#FF3B30" stroke-linecap="round" stroke-width="2" width="50"
-          x="1" y="1"
-      />
-    </svg>
   </button>
 </template>
 
-<script lang="ts" setup>
-import {computed, onBeforeUnmount, ref} from 'vue';
+<script setup lang="ts">
+import { ref, computed, onBeforeUnmount } from 'vue';
 
 const emit = defineEmits<{ (e: 'close'): void }>();
 
-const HOLD_DURATION = 5000;
+const HOLD_DURATION = 3000;
 const ARM_DURATION = 3000;
-const PERIMETER = 50 * 4;
 
 const state = ref<'idle' | 'arming' | 'holding'>('idle');
 const holdProgress = ref(0);
@@ -55,8 +41,6 @@ const label = computed(() => {
   if (state.value === 'arming') return '按住关闭';
   return '松手取消';
 });
-
-const dashOffset = computed(() => PERIMETER * (1 - holdProgress.value));
 
 function clearArmTimer() {
   if (armTimer !== null) {
@@ -100,15 +84,18 @@ function onPointerDown(e: PointerEvent) {
   if (btn) {
     try {
       btn.setPointerCapture(e.pointerId);
-    } catch { /* ignore */
+    } catch {
+      /* ignore */
     }
   }
 
   const tick = (now: number) => {
     if (fired) return;
     if (state.value !== 'holding') return;
+
     const elapsed = now - holdStartTime;
     holdProgress.value = Math.min(1, elapsed / HOLD_DURATION);
+
     if (holdProgress.value >= 1) {
       triggerClose();
     } else {
@@ -142,7 +129,6 @@ function triggerClose() {
   state.value = 'idle';
   holdProgress.value = 0;
 
-  // 通知父组件
   emit('close');
 }
 
@@ -154,6 +140,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .close-btn {
+  --progress: 0deg;
+
   position: relative;
   display: flex;
   align-items: center;
@@ -170,15 +158,42 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
-  0 0 0 0.5px rgba(0, 0, 0, 0.04);
-  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-  color 160ms,
-  transform 80ms;
+  box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.08),
+      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  transition:
+      background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+      color 160ms,
+      transform 80ms;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   touch-action: none;
   font-family: inherit;
+  isolation: isolate;
+}
+
+.close-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+      #ff3b30 var(--progress),
+      rgba(255, 59, 48, 0.12) 0
+  );
+  -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.close-btn.holding::before {
+  opacity: 1;
 }
 
 .close-btn:hover {
@@ -190,24 +205,21 @@ onBeforeUnmount(() => {
 }
 
 .close-btn.arming {
-  color: #FF3B30;
+  color: #ff3b30;
   background: rgba(255, 59, 48, 0.08);
 }
 
 .close-btn.holding {
-  color: #FF3B30;
+  color: #ff3b30;
   background: rgba(255, 59, 48, 0.12);
+}
+
+.close-icon {
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .label {
   white-space: nowrap;
-}
-
-.progress-ring {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
 }
 </style>

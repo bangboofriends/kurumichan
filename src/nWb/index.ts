@@ -945,6 +945,53 @@ export class nWb {
         if (!this.isRestoringHistory) this.pushHistory();
     }
 
+    /**
+     * 向当前页插入一张图片。
+     * 图片放在当前视口中心，超出视口时等比缩小到视口的 80% 以内。
+     *
+     * @param src 图片地址（dataURL / blob URL / 远程 URL，远程需允许跨域）
+     */
+    async addImage(src: string): Promise<void> {
+        const page = this.pages[this.pageIndex];
+        if (!page) throw new Error('nWb: no active page');
+
+        const img = await this.loadImage(src);
+        const natW = img.naturalWidth || img.width;
+        const natH = img.naturalHeight || img.height;
+
+        // 当前视口对应的世界范围
+        const tl = this.toWorld(0, 0);
+        const br = this.toWorld(this.viewW, this.viewH);
+        const viewW = Math.abs(br.x - tl.x);
+        const viewH = Math.abs(br.y - tl.y);
+
+        const fit = Math.min(1, (viewW * 0.8) / natW, (viewH * 0.8) / natH);
+        const w = natW * fit;
+        const h = natH * fit;
+        const cx = (tl.x + br.x) / 2;
+        const cy = (tl.y + br.y) / 2;
+
+        const stroke: Stroke = {
+            id: this.newId('s'),
+            mode: 'image',
+            points: [{x: cx - w / 2, y: cy - h / 2}],
+            width: 0,
+            bbox: {minX: 0, maxX: 0, minY: 0, maxY: 0},
+            imgSrc: src,
+            imgW: w,
+            imgH: h,
+            imgEl: img,
+            imgReady: true,
+        };
+        this.recomputeStrokeBBox(stroke);
+
+        this.commitSelectionIfActive();
+        page.strokes.push(stroke);
+        this.requestRender();
+        if (!this.isRestoringHistory) this.pushHistory();
+        this.emit('onDraw', {strokeId: stroke.id, mode: 'image', points: 1});
+    }
+
     getPageIndex(): number {
         return this.pageIndex + 1;
     }
