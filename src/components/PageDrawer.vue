@@ -5,14 +5,11 @@
         <div class="drawer-header">
           <span class="drawer-title">页面</span>
           <button class="close-btn" @click="close" aria-label="关闭">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                 stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            <span class="i-mingcute-close-line" style="font-size: 16px" />
           </button>
         </div>
 
-        <div class="drawer-body" ref="bodyRef">
+        <div class="drawer-body">
           <div class="grid">
             <button
                 v-for="i in pen.pageCount"
@@ -22,20 +19,16 @@
                 @click="onJump(i)"
             >
               <canvas
-                  :ref="el => setCanvasRef(i - 1, el)"
+                  :ref="(el) => setCanvasRef(i - 1, el)"
                   class="thumb-canvas"
-                  :style="{ aspectRatio: `${aspectRatio}` }"
+                  :style="{ aspectRatio }"
               ></canvas>
               <span class="thumb-label">{{ i }}</span>
             </button>
           </div>
 
           <button class="add-btn" @click="onAddPage">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                 stroke="currentColor" stroke-width="2.4"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            <span class="i-mingcute-add-line" style="font-size: 18px" />
             <span>新建页</span>
           </button>
         </div>
@@ -61,7 +54,6 @@ const pen = usePenStore(resolvedStoreId);
 
 const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
 
-const bodyRef = ref<HTMLElement | null>(null);
 const canvasRefs = ref<(HTMLCanvasElement | null)[]>([]);
 
 const aspectRatio = computed(() => {
@@ -70,8 +62,15 @@ const aspectRatio = computed(() => {
   return `${w} / ${h}`;
 });
 
-function setCanvasRef(index: number, el: HTMLElement | null) {
-  canvasRefs.value[index] = el as HTMLCanvasElement | null;
+/** 关键修复：把 el 的类型从 `Element | ComponentPublicInstance` 收窄到 `HTMLCanvasElement` */
+function setCanvasRef(index: number, el: Element | { $el?: Element } | null) {
+  if (el instanceof HTMLCanvasElement) {
+    canvasRefs.value[index] = el;
+  } else if (el && '$el' in el && el.$el instanceof HTMLCanvasElement) {
+    canvasRefs.value[index] = el.$el;
+  } else {
+    canvasRefs.value[index] = null;
+  }
 }
 
 function renderAllThumbs() {
@@ -90,17 +89,13 @@ function renderAllThumbs() {
 
 async function renderAfterLayout() {
   await nextTick();
-  // 让浏览器完成布局再读取尺寸
   requestAnimationFrame(() => renderAllThumbs());
 }
 
 watch(
     () => pen.drawerOpen,
     async (open) => {
-      if (!open) {
-        canvasRefs.value = [];
-        return;
-      }
+      if (!open) { canvasRefs.value = []; return; }
       await renderAfterLayout();
     },
 );
@@ -112,18 +107,10 @@ watch(
     },
 );
 
-onBeforeUnmount(() => {
-  canvasRefs.value = [];
-});
+onBeforeUnmount(() => { canvasRefs.value = []; });
 
-function close() {
-  pen.drawerOpen = false;
-}
-
-function onJump(i: number) {
-  nwbRef?.value?.goTo(i);
-  close();
-}
+function close() { pen.drawerOpen = false; }
+function onJump(i: number) { nwbRef?.value?.goTo(i); close(); }
 
 async function onAddPage() {
   const inst = nwbRef?.value;
@@ -168,11 +155,7 @@ async function onAddPage() {
   flex-shrink: 0;
 }
 
-.drawer-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1D1D1F;
-}
+.drawer-title { font-size: 16px; font-weight: 600; }
 
 .close-btn {
   width: 28px;
@@ -185,12 +168,9 @@ async function onAddPage() {
   border-radius: 50%;
   color: #6E6E73;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 
-.close-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
+.close-btn:hover { background: rgba(0, 0, 0, 0.08); }
 
 .drawer-body {
   flex: 1;
@@ -220,20 +200,10 @@ async function onAddPage() {
   -webkit-tap-highlight-color: transparent;
 }
 
-.thumb:hover {
-  transform: translateY(-1px);
-}
+.thumb:hover { transform: translateY(-1px); }
+.thumb.active { border-color: #34C759; }
 
-.thumb.active {
-  border-color: #34C759;
-}
-
-.thumb-canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-}
+.thumb-canvas { display: block; width: 100%; height: auto; border-radius: 8px; }
 
 .thumb-label {
   position: absolute;
@@ -276,7 +246,6 @@ async function onAddPage() {
   border-color: rgba(52, 199, 89, 0.35);
 }
 
-/* 抽屉滑入滑出 */
 .drawer-enter-active,
 .drawer-leave-active {
   transition: opacity 260ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -288,12 +257,8 @@ async function onAddPage() {
 }
 
 .drawer-enter-from,
-.drawer-leave-to {
-  opacity: 0;
-}
+.drawer-leave-to { opacity: 0; }
 
 .drawer-enter-from .drawer-panel,
-.drawer-leave-to .drawer-panel {
-  transform: translateX(100%);
-}
+.drawer-leave-to .drawer-panel { transform: translateX(100%); }
 </style>

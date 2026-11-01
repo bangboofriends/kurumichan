@@ -1,16 +1,23 @@
 <template>
   <div class="bottom-bar">
+    <!-- 左侧栏：菜单 / 笔 / 橡皮 / 最小化 -->
     <div class="side side-left">
-      <MenuGroup side="left" :store-id="resolvedStoreId" />
+      <SideToolbar side="left" :store-id="resolvedStoreId" />
     </div>
+
+    <!-- 中间：翻页 + 关闭 -->
     <div class="side side-center">
-      <CloseButton />
+      <PageBar :store-id="resolvedStoreId" />
+      <CloseButton @close="onClose" />
     </div>
+
+    <!-- 右侧栏：菜单 / 笔 / 橡皮 / 最小化 -->
     <div class="side side-right">
-      <MenuGroup side="right" :store-id="resolvedStoreId" />
+      <SideToolbar side="right" :store-id="resolvedStoreId" />
     </div>
   </div>
 
+  <!-- 面板 -->
   <Transition name="panel">
     <PenPanel
         v-if="pen.panelKind === 'pen'"
@@ -25,45 +32,73 @@
         :store-id="resolvedStoreId"
     />
   </Transition>
+  <Transition name="panel">
+    <MenuPanel
+        v-if="pen.panelKind === 'menu'"
+        :side="pen.panelSide"
+        :store-id="resolvedStoreId"
+    />
+  </Transition>
+  <Transition name="panel">
+    <AboutPanel
+        v-if="pen.panelKind === 'about'"
+        :store-id="resolvedStoreId"
+    />
+  </Transition>
+  <Transition name="panel">
+    <SettingsPanel
+        v-if="pen.panelKind === 'settings'"
+        :store-id="resolvedStoreId"
+    />
+  </Transition>
+
+  <PageDrawer :store-id="resolvedStoreId" />
 </template>
 
 <script setup lang="ts">
 import { inject } from 'vue';
 import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
-import MenuGroup from '@/components/MenuGroupLite.vue';
+import SideToolbar from '@/components/SideToolBar.vue';
 import CloseButton from '@/components/CloseButton.vue';
+import PageBar from '@/components/PageBar.vue';
 import PenPanel from '@/components/PenPanel.vue';
 import EraserPanel from '@/components/EraserPanel.vue';
+import MenuPanel from '@/components/MenuPanel.vue';
+import AboutPanel from '@/components/AboutPanel.vue';
+import SettingsPanel from '@/components/SettingsPanel.vue';
+import PageDrawer from '@/components/PageDrawer.vue';
 
-const props = defineProps<{
-  /** 不传时从 inject 拿；都没有则使用默认 store */
-  storeId?: string;
-}>();
+const props = defineProps<{ storeId?: string }>();
 
 const injectedId = inject<string | undefined>(PANEL_STORE_KEY, undefined);
 const resolvedStoreId = props.storeId ?? injectedId ?? DEFAULT_STORE_ID;
-
 const pen = usePenStore(resolvedStoreId);
+
+function onClose() {
+  window.dispatchEvent(new CustomEvent('nwb:command', { detail: { type: 'close' } }));
+}
 </script>
 
 <style scoped>
 .bottom-bar {
   position: fixed;
-  bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
   left: 0;
   right: 0;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 28px;
   pointer-events: none;
   z-index: 100;
+  gap: 12px;
 }
 
 .side {
   pointer-events: auto;
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .side-left { justify-content: flex-start; }

@@ -282,43 +282,45 @@ interface PalmEraseState {
  *  - 无 "eraser 笔迹" 概念：橡皮擦直接切分已有笔迹，被擦除的部分在数据中不存在
  */
 export class nWb {
+    /** 页码变化回调（1-based）。 */
+    public onPageChange?: (pageIndex: number, pageCount: number) => void;
+    /** 缩放倍数变化回调。 */
+    public onScaleChange?: (scale: number) => void;
+    /** 选区状态变化回调。 */
+    public onSelectionChange?: (hasSelection: boolean) => void;
+    /** 撤销 / 重做可用性变化回调。 */
+    public onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
+    /** 主画布视口尺寸变化回调（CSS 像素）。 */
+    public onViewResize?: (width: number, height: number) => void;
     private canvas!: HTMLCanvasElement;
     private ctx!: CanvasRenderingContext2D;
     private dpr = 1;
     private viewW = 1;
     private viewH = 1;
-
     /** 笔画图层（离屏画布），用于分层渲染 */
     private strokeCanvas: HTMLCanvasElement | null = null;
     private strokeCtx: CanvasRenderingContext2D | null = null;
-
     private pages: Page[] = [];
     private pageIndex = 0;
     private cam = {scale: 1, tx: 0, ty: 0};
-
     private MIN_SCALE = 0.05;
     private MAX_SCALE = 6000;
     private TH_RENORM = 1e10;
-
     private changePageEffect: PageEffect = 'none';
     private pageTransition: PageTransition | null = null;
     private transitionAnimating = false;
     private readonly TRANSITION_MS = 320;
-
     private currentTool: ToolType = 'pen';
     private currentPen: nWbPenOptions | null = {color: '#1a1a1a', thick: 3};
     private currentSpPen: { config: nWbSpPenOptions; image: HTMLImageElement } | null = null;
     private currentEraserSize = 30;
-
     private currentStroke: Stroke | null = null;
     /** 单指正在擦除中（橡皮擦不再作为笔迹存储，而是实时切分笔迹） */
     private isErasing = false;
     private gesture: any = null;
     private pts = new Map<number, Point>();
-
     /** 矢量级选区 */
     private selection: Selection = this.blankSelection();
-
     /** 撤销 / 重做历史栈 */
     private historyStack: Page[][] = [];
     private historyIndex = -1;
@@ -327,13 +329,14 @@ export class nWb {
     private isRestoringHistory = false;
     /** 标记本次会话（橡皮擦）是否改动了数据，用于在松手时合并成一次历史记录 */
     private historyDirty = false;
-
     private idCounter = 1;
     private rafId = 0;
+
+    // ============================================================
+    // 事件系统 / 触摸点 / 手掌擦除（新增）
+    // ============================================================
     private initialized = false;
-
     private builtInPatterns = new Map<string, HTMLImageElement>();
-
     private resizeObserver: ResizeObserver | null = null;
     private windowResizeHandler: (() => void) | null = null;
     private boundHandlers: {
@@ -342,30 +345,27 @@ export class nWb {
         pointerup: (e: PointerEvent) => void;
         wheel: (e: WheelEvent) => void;
     } | null = null;
-
-    // ============================================================
-    // 事件系统 / 触摸点 / 手掌擦除（新增）
-    // ============================================================
-
     /** 事件监听器注册表 */
     private listeners: Map<EventType, Set<EventHandler>> = new Map();
-
     /** 是否处于触摸点检测模式 */
     private isTpDetectMode = false;
-
+    private currentSampleScale = 1;
     /** 自定义橡皮擦图片 */
     private eraserImage: HTMLImageElement | null = null;
-
     /** 当前所有触摸点的最新数据 */
     private touchPointsData: Map<number, TouchPointData> = new Map();
 
+    /* ============================================================
+     * 初始化
+     * ============================================================ */
+
+    // 老实写白板，很枯燥吧？
     /**
      * 手掌面积阈值（平方像素）。
      * 触摸点的 `width * height` 超过此值即视为手掌 / 大面积接触，触发擦除。
      * 可通过 `setPalmAreaSize` 调整。
      */
     private palmAreaSize = 500;
-
     /** 手掌擦除状态 */
     private palmErase: PalmEraseState = {
         active: false,
@@ -373,22 +373,11 @@ export class nWb {
         lastPos: null,
     };
 
+    /* ============================================================
+     * 事件系统（新增）
+     * ============================================================ */
     private readonly TAIL_SCREEN_PX = 2;
     private readonly TAIL_WIDTH_RATIO = 0.5;
-
-    /**
-     * 收尾长度（屏幕 px）：不小于 2px，也不小于笔宽的 0.5 倍（保证粗笔也能看到收尾）。
-     */
-    private tailScreenFor(s: Stroke): number {
-        const widthScreen = s.width * this.cam.scale;
-        return Math.max(this.TAIL_SCREEN_PX, widthScreen * this.TAIL_WIDTH_RATIO);
-    }
-
-    /* ============================================================
-     * 初始化
-     * ============================================================ */
-
-    // 老实写白板，很枯燥吧？
 
     /**
      * 初始化白板：绑定 canvas、注册事件、创建首屏、初始化历史。
@@ -452,6 +441,10 @@ export class nWb {
         this.resize();
     }
 
+    /* ============================================================
+     * 自定义橡皮擦图片 / 手掌面积阈值（新增）
+     * ============================================================ */
+
     /**
      * 销毁：解绑所有事件、断开 ResizeObserver、清空历史。
      * 调用后如需继续使用，必须重新 `init()`。
@@ -486,10 +479,6 @@ export class nWb {
         this.initialized = false;
     }
 
-    /* ============================================================
-     * 事件系统（新增）
-     * ============================================================ */
-
     /**
      * 添加事件监听器。
      */
@@ -500,32 +489,16 @@ export class nWb {
         this.listeners.get(type)!.add(handler);
     }
 
+    /* ============================================================
+     * 画笔 / 工具
+     * ============================================================ */
+
     /**
      * 移除事件监听器。
      */
     removeEventListener(type: EventType, handler: EventHandler): void {
         this.listeners.get(type)?.delete(handler);
     }
-
-    /**
-     * 触发事件（内部使用）。
-     */
-    private emit(type: EventType, data?: any): void {
-        const handlers = this.listeners.get(type);
-        if (handlers) {
-            handlers.forEach(handler => {
-                try {
-                    handler(data);
-                } catch (e) {
-                    console.error(`nWb: event handler error in "${type}"`, e);
-                }
-            });
-        }
-    }
-
-    /* ============================================================
-     * 自定义橡皮擦图片 / 手掌面积阈值（新增）
-     * ============================================================ */
 
     /**
      * 设置自定义橡皮擦图片。
@@ -566,10 +539,6 @@ export class nWb {
         if (area > 0) this.palmAreaSize = area;
     }
 
-    /* ============================================================
-     * 画笔 / 工具
-     * ============================================================ */
-
     /**
      * 设置普通笔并切到 `pen` 工具。
      */
@@ -608,6 +577,10 @@ export class nWb {
         this.currentTool = 'eraser';
     }
 
+    /* ============================================================
+     * 撤销 / 重做
+     * ============================================================ */
+
     /**
      * 切换到某个工具。
      */
@@ -645,10 +618,6 @@ export class nWb {
             this.builtInPatterns.set(name, img);
         });
     }
-
-    /* ============================================================
-     * 撤销 / 重做
-     * ============================================================ */
 
     /** 是否可撤销。 */
     canUndo(): boolean {
@@ -700,83 +669,6 @@ export class nWb {
         this.historyIndex = 0;
         this.emitHistoryChange();
     }
-
-    /** 初始化历史栈（在 init 末尾调用）。 */
-    private initHistory(): void {
-        this.historyStack = [this.clonePages()];
-        this.historyIndex = 0;
-        this.emitHistoryChange();
-    }
-
-    /**
-     * 提交一次历史快照。
-     */
-    private pushHistory(): void {
-        if (this.isRestoringHistory) return;
-
-        if (this.historyIndex < this.historyStack.length - 1) {
-            this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
-        }
-
-        this.historyStack.push(this.clonePages());
-
-        if (this.historyStack.length > this.MAX_HISTORY + 1) {
-            this.historyStack.shift();
-        } else {
-            this.historyIndex++;
-        }
-
-        this.emitHistoryChange();
-    }
-
-    /** 从当前历史位置恢复 pages。 */
-    private restoreHistory(): void {
-        const snapshot = this.historyStack[this.historyIndex];
-        if (!snapshot) return;
-
-        this.pages = this.clonePagesFrom(snapshot);
-
-        if (this.pageIndex >= this.pages.length) {
-            this.pageIndex = Math.max(0, this.pages.length - 1);
-        }
-        this.syncCam();
-        this.clearSelection();
-        this.requestRender();
-        this.emitPageChange();
-        this.emitScaleChange();
-    }
-
-    /** 深拷贝 pages —— 可序列化字段克隆，运行时对象共享引用。 */
-    private clonePages(): Page[] {
-        return this.pages.map(p => this.clonePage(p));
-    }
-
-    private clonePagesFrom(pages: Page[]): Page[] {
-        return pages.map(p => this.clonePage(p));
-    }
-
-    private clonePage(p: Page): Page {
-        return {
-            id: p.id,
-            bgcolor: p.bgcolor,
-            bgimgSrc: p.bgimgSrc,
-            bgimg: p.bgimg,
-            cam: {...p.cam},
-            strokes: p.strokes.map(s => this.cloneStroke(s)),
-        };
-    }
-
-    private cloneStroke(s: Stroke): Stroke {
-        return {
-            ...s,
-            points: s.points.map(pt => ({...pt})),
-            bbox: {...s.bbox},
-        };
-    }
-
-    /* ============================================================
-     * 选区公开 API
-     * ============================================================ */
 
     /** 提交选区。 */
     commitSelection(): void {
@@ -853,12 +745,8 @@ export class nWb {
         return this.selection.active;
     }
 
-    private commitSelectionIfActive(): void {
-        if (this.selection.active) this.commitSelection();
-    }
-
     /* ============================================================
-     * 页面
+     * 选区公开 API
      * ============================================================ */
 
     /**
@@ -943,10 +831,6 @@ export class nWb {
         if (this.pageIndex < this.pages.length - 1) this.goTo(this.pageIndex + 2);
     }
 
-    /* ============================================================
-     * 导入 / 导出
-     * ============================================================ */
-
     /**
      * 导出全部页面为纯数据。
      */
@@ -983,6 +867,10 @@ export class nWb {
         });
     }
 
+    /* ============================================================
+     * 页面
+     * ============================================================ */
+
     /**
      * 批量导入页面，覆盖当前所有页面。
      */
@@ -1003,7 +891,8 @@ export class nWb {
                 try {
                     page.bgimg = await this.loadImage(sp.bgimgSrc);
                     page.bgimgSrc = sp.bgimgSrc;
-                } catch { /* 忽略 */ }
+                } catch { /* 忽略 */
+                }
             }
 
             for (const ss of sp.strokes) {
@@ -1023,7 +912,8 @@ export class nWb {
                     if (ss.patternSrc) {
                         try {
                             stroke.patternImage = await this.loadImage(ss.patternSrc);
-                        } catch { /* 忽略 */ }
+                        } catch { /* 忽略 */
+                        }
                     }
                 } else if (ss.mode === 'image') {
                     stroke.imgSrc = ss.imgSrc;
@@ -1033,7 +923,8 @@ export class nWb {
                         try {
                             stroke.imgEl = await this.loadImage(ss.imgSrc);
                             stroke.imgReady = true;
-                        } catch { /* 忽略 */ }
+                        } catch { /* 忽略 */
+                        }
                     }
                 }
                 this.recomputeStrokeBBox(stroke);
@@ -1054,10 +945,6 @@ export class nWb {
         if (!this.isRestoringHistory) this.pushHistory();
     }
 
-    /* ============================================================
-     * 查询
-     * ============================================================ */
-
     getPageIndex(): number {
         return this.pageIndex + 1;
     }
@@ -1070,6 +957,10 @@ export class nWb {
         return this.cam.scale;
     }
 
+    /* ============================================================
+     * 导入 / 导出
+     * ============================================================ */
+
     getCurrentTapPoints(): number {
         return this.pts.size;
     }
@@ -1078,13 +969,296 @@ export class nWb {
         return this.historyIndex;
     }
 
+    /* ============================================================
+     * 查询
+     * ============================================================ */
+
     getHistoryLength(): number {
         return this.historyStack.length;
+    }
+
+    /**
+     * 获取当前所有触摸点的最新数据。
+     * 用于 UI 层查询多点触摸状态（例如显示"当前 N 个触摸点"）。
+     */
+    getTouchPoints(): TouchPointData[] {
+        return [...this.touchPointsData.values()];
+    }
+
+    /**
+     * 当前是否处于手掌擦除状态（希沃 / Ink Canvas 风格）。
+     */
+    isPalmErasing(): boolean {
+        return this.palmErase.active;
+    }
+
+    /**
+     * 清空当前页全部笔迹（记入历史，可撤销）。
+     */
+    clearCurrentPage(): void {
+        this.commitSelectionIfActive();
+        const page = this.pages[this.pageIndex];
+        if (!page) return;
+        page.strokes = [];
+        this.clearSelection();
+        this.requestRender();
+        if (!this.isRestoringHistory) this.pushHistory();
+    }
+
+    /** 获取当前主画布视口尺寸（CSS 像素） */
+    getViewSize(): { width: number; height: number } {
+        return {width: this.viewW, height: this.viewH};
+    }
+
+    /**
+     * 渲染指定页的缩略图到目标 canvas。
+     *
+     * 缩略图展示的是「以当前主画布视口对应的世界范围」为内容，
+     * 因此所有页的缩略图都在同一世界区域下，方便对比内容差异。
+     *
+     * @param pageIndex 页索引（0-based）
+     * @param canvas 目标 canvas
+     * @param cssW 目标 CSS 宽度（像素）
+     * @param cssH 目标 CSS 高度（像素）
+     */
+    renderPageThumbnail(
+        pageIndex: number,
+        canvas: HTMLCanvasElement,
+        cssW: number,
+        cssH: number,
+    ): void {
+        const page = this.pages[pageIndex];
+        if (!page) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.round(cssW * dpr));
+        canvas.height = Math.max(1, Math.round(cssH * dpr));
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // 背景
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = page.bgcolor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 以主画布当前视口对应的世界矩形为内容范围
+        const mainCam = this.cam;
+        const wx0 = (0 - mainCam.tx) / mainCam.scale;
+        const wy0 = (0 - mainCam.ty) / mainCam.scale;
+        const wx1 = (this.viewW - mainCam.tx) / mainCam.scale;
+        const wy1 = (this.viewH - mainCam.ty) / mainCam.scale;
+
+        const sx = canvas.width / Math.max(1e-9, wx1 - wx0);
+        const sy = canvas.height / Math.max(1e-9, wy1 - wy0);
+
+        ctx.setTransform(sx, 0, 0, sy, -wx0 * sx, -wy0 * sy);
+
+        if (page.bgimg) ctx.drawImage(page.bgimg, 0, 0);
+
+        for (const s of page.strokes) {
+            this.drawStrokeToCtx(ctx, s);
+        }
     }
 
     /* ============================================================
      * 过渡动画
      * ============================================================ */
+
+    /**
+     * 把所有页面渲染成高清图片（每页一张 dataURL）。
+     *
+     * @param range
+     *   - `'all'` 或不传：全部页面
+     *   - `number`：单页（0-based）
+     *   - `[start, end]`：范围（含两端，0-based）
+     * @param options
+     *   - `scale`：相对主画布 CSS 像素的倍数，默认 `2`
+     *   - `format`：`'png' | 'jpeg' | 'webp'`，默认 `'png'`
+     *   - `quality`：0~1，仅 jpeg/webp 有效
+     * @returns 与 range 顺序一致的 dataURL 数组
+     */
+    renderHQImage(
+        range?: 'all' | number | [number, number],
+        options: { scale?: number; format?: 'png' | 'jpeg' | 'webp'; quality?: number } = {},
+    ): string[] {
+        const {scale = 2, format = 'png', quality = 0.92} = options;
+        const baseDpr = window.devicePixelRatio || 1;
+
+        // 输出物理像素尺寸 = 主画布 CSS 尺寸 × dpr × scale
+        const outW = Math.max(1, Math.round(this.viewW * baseDpr * scale));
+        const outH = Math.max(1, Math.round(this.viewH * baseDpr * scale));
+
+        // 解析页范围
+        let indices: number[];
+        if (range === undefined || range === 'all') {
+            indices = this.pages.map((_, i) => i);
+        } else if (typeof range === 'number') {
+            indices = [range];
+        } else {
+            const [a, b] = range;
+            indices = [];
+            for (let i = a; i <= b && i < this.pages.length; i++) indices.push(i);
+        }
+
+        const results: string[] = [];
+        const prevSampleScale = this.currentSampleScale;
+
+        try {
+            for (const idx of indices) {
+                const page = this.pages[idx];
+                if (!page) continue;
+
+                const cvs = document.createElement('canvas');
+                cvs.width = outW;
+                cvs.height = outH;
+                const ctx = cvs.getContext('2d');
+                if (!ctx) continue;
+
+                // 以该页相机 + 主画布视口对应的世界矩形为内容范围
+                const cam = page.cam;
+                const wx0 = (0 - cam.tx) / cam.scale;
+                const wy0 = (0 - cam.ty) / cam.scale;
+                const wx1 = (this.viewW - cam.tx) / cam.scale;
+                const wy1 = (this.viewH - cam.ty) / cam.scale;
+
+                const sx = outW / Math.max(1e-9, wx1 - wx0);
+                const sy = outH / Math.max(1e-9, wy1 - wy0);
+
+                // 背景
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.fillStyle = page.bgcolor;
+                ctx.fillRect(0, 0, outW, outH);
+
+                // 世界坐标 → 输出像素
+                ctx.setTransform(sx, 0, 0, sy, -wx0 * sx, -wy0 * sy);
+
+                // 采样缩放（笔锋密度）
+                this.currentSampleScale = Math.min(sx, sy);
+
+                if (page.bgimg) ctx.drawImage(page.bgimg, 0, 0);
+
+                for (const s of page.strokes) {
+                    this.drawStrokeToCtx(ctx, s);
+                }
+
+                results.push(cvs.toDataURL(`image/${format}`, quality));
+            }
+        } finally {
+            this.currentSampleScale = prevSampleScale;
+        }
+
+        return results;
+    }
+
+    /**
+     * 收尾长度（屏幕 px）：不小于 2px，也不小于笔宽的 0.5 倍（保证粗笔也能看到收尾）。
+     */
+    private tailScreenFor(s: Stroke): number {
+        const widthScreen = s.width * this.cam.scale;
+        return Math.max(this.TAIL_SCREEN_PX, widthScreen * this.TAIL_WIDTH_RATIO);
+    }
+
+    /* ============================================================
+     * 基础工具
+     * ============================================================ */
+
+    /**
+     * 触发事件（内部使用）。
+     */
+    private emit(type: EventType, data?: any): void {
+        const handlers = this.listeners.get(type);
+        if (handlers) {
+            handlers.forEach(handler => {
+                try {
+                    handler(data);
+                } catch (e) {
+                    console.error(`nWb: event handler error in "${type}"`, e);
+                }
+            });
+        }
+    }
+
+    /** 初始化历史栈（在 init 末尾调用）。 */
+    private initHistory(): void {
+        this.historyStack = [this.clonePages()];
+        this.historyIndex = 0;
+        this.emitHistoryChange();
+    }
+
+    /**
+     * 提交一次历史快照。
+     */
+    private pushHistory(): void {
+        if (this.isRestoringHistory) return;
+
+        if (this.historyIndex < this.historyStack.length - 1) {
+            this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
+        }
+
+        this.historyStack.push(this.clonePages());
+
+        if (this.historyStack.length > this.MAX_HISTORY + 1) {
+            this.historyStack.shift();
+        } else {
+            this.historyIndex++;
+        }
+
+        this.emitHistoryChange();
+    }
+
+    /** 从当前历史位置恢复 pages。 */
+    private restoreHistory(): void {
+        const snapshot = this.historyStack[this.historyIndex];
+        if (!snapshot) return;
+
+        this.pages = this.clonePagesFrom(snapshot);
+
+        if (this.pageIndex >= this.pages.length) {
+            this.pageIndex = Math.max(0, this.pages.length - 1);
+        }
+        this.syncCam();
+        this.clearSelection();
+        this.requestRender();
+        this.emitPageChange();
+        this.emitScaleChange();
+    }
+
+    /** 深拷贝 pages —— 可序列化字段克隆，运行时对象共享引用。 */
+    private clonePages(): Page[] {
+        return this.pages.map(p => this.clonePage(p));
+    }
+
+    private clonePagesFrom(pages: Page[]): Page[] {
+        return pages.map(p => this.clonePage(p));
+    }
+
+    /* ============================================================
+     * 渲染
+     * ============================================================ */
+
+    private clonePage(p: Page): Page {
+        return {
+            id: p.id,
+            bgcolor: p.bgcolor,
+            bgimgSrc: p.bgimgSrc,
+            bgimg: p.bgimg,
+            cam: {...p.cam},
+            strokes: p.strokes.map(s => this.cloneStroke(s)),
+        };
+    }
+
+    private cloneStroke(s: Stroke): Stroke {
+        return {
+            ...s,
+            points: s.points.map(pt => ({...pt})),
+            bbox: {...s.bbox},
+        };
+    }
+
+    private commitSelectionIfActive(): void {
+        if (this.selection.active) this.commitSelection();
+    }
 
     private startTransitionLoop(): void {
         if (this.transitionAnimating) return;
@@ -1109,13 +1283,11 @@ export class nWb {
         }
     };
 
-    /* ============================================================
-     * 基础工具
-     * ============================================================ */
-
     private newId(prefix: string): string {
         return `${prefix}_${this.idCounter++}_${Date.now().toString(36)}`;
     }
+
+    // 调参数已经调成 f(x)战士了
 
     private syncCam(): void {
         const page = this.pages[this.pageIndex];
@@ -1131,6 +1303,10 @@ export class nWb {
             img.src = src;
         });
     }
+
+    /* ============================================================
+     * 选区绘制（屏幕坐标：虚线框 + 四角手柄 + 套索路径）
+     * ============================================================ */
 
     private resize(): void {
         if (!this.canvas) return;
@@ -1165,7 +1341,7 @@ export class nWb {
     }
 
     /* ============================================================
-     * 渲染
+     * 触摸点可视化 & 橡皮擦图片（新增）
      * ============================================================ */
 
     private requestRender(): void {
@@ -1186,6 +1362,10 @@ export class nWb {
         if (this.strokeCanvas.width !== this.canvas.width) this.strokeCanvas.width = this.canvas.width;
         if (this.strokeCanvas.height !== this.canvas.height) this.strokeCanvas.height = this.canvas.height;
     }
+
+    /* ============================================================
+     * 坐标系
+     * ============================================================ */
 
     private render(): void {
         const ctx = this.ctx, canvas = this.canvas;
@@ -1241,41 +1421,57 @@ export class nWb {
         const tx = (cam.tx + offsetX) * this.dpr;
         const ty = cam.ty * this.dpr;
 
-        ctx.setTransform(k, 0, 0, k, tx, ty);
-        if (page.bgimg) ctx.drawImage(page.bgimg, 0, 0);
+        // 采样缩放（用于笔锋密度）
+        const prevScale = this.currentSampleScale;
+        this.currentSampleScale = cam.scale;
 
-        // 笔画层
-        this.ensureStrokeCanvas();
-        const sctx = this.strokeCtx!;
-        const sc = this.strokeCanvas!;
+        try {
+            // ---- 背景图层 ----
+            ctx.setTransform(k, 0, 0, k, tx, ty);
+            if (page.bgimg) ctx.drawImage(page.bgimg, 0, 0);
 
-        sctx.setTransform(1, 0, 0, 1, 0, 0);
-        sctx.clearRect(0, 0, sc.width, sc.height);
-        sctx.setTransform(k, 0, 0, k, tx, ty);
+            // ---- 笔画图层（离屏） ----
+            this.ensureStrokeCanvas();
+            const sctx = this.strokeCtx!;
+            const sc = this.strokeCanvas!;
 
-        const x0 = (0 - cam.tx - offsetX) / cam.scale;
-        const y0 = (0 - cam.ty) / cam.scale;
-        const x1 = (this.viewW - cam.tx - offsetX) / cam.scale;
-        const y1 = (this.viewH - cam.ty) / cam.scale;
-        const pad = 2 / cam.scale;
+            sctx.setTransform(1, 0, 0, 1, 0, 0);
+            sctx.clearRect(0, 0, sc.width, sc.height);
+            sctx.setTransform(k, 0, 0, k, tx, ty);
 
-        for (let i = 0; i < page.strokes.length; i++) {
-            const s = page.strokes[i];
-            const b = s.bbox;
-            if (b.maxX < x0 - pad || b.minX > x1 + pad ||
-                b.maxY < y0 - pad || b.minY > y1 + pad) continue;
-            this.drawStrokeToCtx(sctx, s);
+            // 视口裁剪（世界坐标）
+            const x0 = (0 - cam.tx - offsetX) / cam.scale;
+            const y0 = (0 - cam.ty) / cam.scale;
+            const x1 = (this.viewW - cam.tx - offsetX) / cam.scale;
+            const y1 = (this.viewH - cam.ty) / cam.scale;
+            const pad = 2 / cam.scale;
+
+            for (let i = 0; i < page.strokes.length; i++) {
+                const s = page.strokes[i];
+                const b = s.bbox;
+                if (b.maxX < x0 - pad || b.minX > x1 + pad ||
+                    b.maxY < y0 - pad || b.minY > y1 + pad) continue;
+                this.drawStrokeToCtx(sctx, s);
+            }
+
+            // 正在绘制的临时笔画（仅当前页）
+            if (this.currentStroke && page === this.pages[this.pageIndex]) {
+                this.drawStrokeToCtx(sctx, this.currentStroke);
+            }
+
+            // ---- 合成到主画布 ----
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.drawImage(sc, 0, 0);
+        } finally {
+            this.currentSampleScale = prevScale;
         }
-
-        if (this.currentStroke && page === this.pages[this.pageIndex]) {
-            this.drawStrokeToCtx(sctx, this.currentStroke);
-        }
-
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(sc, 0, 0);
 
         ctx.restore();
     }
+
+    /* ============================================================
+     * 触摸点分类 & 手掌擦除（新增）
+     * ============================================================ */
 
     private drawStrokeToCtx(ctx: CanvasRenderingContext2D, s: Stroke): void {
         if (!s.points.length) return;
@@ -1363,13 +1559,11 @@ export class nWb {
         }
     }
 
-    // 调参数已经调成 f(x)战士了
-
     private drawTailAt(
         ctx: CanvasRenderingContext2D,
         start: Point, ux: number, uy: number, W: number, tailLen: number,
     ): void {
-        const screenTailLen = tailLen * this.cam.scale;
+        const screenTailLen = tailLen * this.currentSampleScale;
         const segs = Math.max(8, Math.min(96, Math.ceil(screenTailLen / 0.4)));
         const END_RATIO = 0.005;
 
@@ -1442,10 +1636,6 @@ export class nWb {
         ctx.stroke();
     }
 
-    /* ============================================================
-     * 选区绘制（屏幕坐标：虚线框 + 四角手柄 + 套索路径）
-     * ============================================================ */
-
     private renderSelectionOverlay(): void {
         const sel = this.selection;
         if (!sel.active) return;
@@ -1517,7 +1707,7 @@ export class nWb {
     }
 
     /* ============================================================
-     * 触摸点可视化 & 橡皮擦图片（新增）
+     * 指针事件
      * ============================================================ */
 
     /**
@@ -1601,10 +1791,6 @@ export class nWb {
         ctx.restore();
     }
 
-    /* ============================================================
-     * 坐标系
-     * ============================================================ */
-
     private localPoint(e: PointerEvent | WheelEvent): Point {
         const r = this.canvas.getBoundingClientRect();
         return {x: e.clientX - r.left, y: e.clientY - r.top};
@@ -1616,10 +1802,6 @@ export class nWb {
             y: (sy - this.cam.ty) / this.cam.scale,
         };
     }
-
-    /* ============================================================
-     * 触摸点分类 & 手掌擦除（新增）
-     * ============================================================ */
 
     /**
      * 分类触摸类型。
@@ -1636,6 +1818,10 @@ export class nWb {
         }
         return 'finger';
     }
+
+    /* ============================================================
+     * 手势
+     * ============================================================ */
 
     /**
      * 判断某个触摸点是否是大面积接触。
@@ -1669,6 +1855,12 @@ export class nWb {
         }
         return best;
     }
+
+    // 大肥鱼别吃我白饭了怎么全是bug啊
+
+    /* ============================================================
+     * 橡皮擦：切分笔迹（保证"被擦除的部分"真实不存在）
+     * ============================================================ */
 
     /**
      * 进入手掌擦除模式。
@@ -1715,10 +1907,6 @@ export class nWb {
         this.palmErase.lastPos = null;
         this.requestRender();
     }
-
-    /* ============================================================
-     * 指针事件
-     * ============================================================ */
 
     private onPointerDown(e: PointerEvent): void {
         if (this.pageTransition) {
@@ -1807,6 +1995,10 @@ export class nWb {
         this.clearSelection();
         this.beginStroke(p);
     }
+
+    /* ============================================================
+     * 矢量级选区交互
+     * ============================================================ */
 
     private beginStroke(p: Point): void {
         const w = this.toWorld(p.x, p.y);
@@ -1994,10 +2186,6 @@ export class nWb {
         this.zoomAt(p.x, p.y, factor);
     }
 
-    /* ============================================================
-     * 手势
-     * ============================================================ */
-
     private startPinch(): void {
         const [a, b] = [...this.pts.values()];
         this.gesture = {
@@ -2031,6 +2219,10 @@ export class nWb {
         this.emitScaleChange();
     }
 
+    /* ============================================================
+     * Floating origin
+     * ============================================================ */
+
     private zoomAt(sx: number, sy: number, factor: number): void {
         const next = this.clamp(this.cam.scale * factor, this.MIN_SCALE, this.MAX_SCALE);
         const k = next / this.cam.scale;
@@ -2041,12 +2233,6 @@ export class nWb {
         this.requestRender();
         this.emitScaleChange();
     }
-
-    // 大肥鱼别吃我白饭了怎么全是bug啊
-
-    /* ============================================================
-     * 橡皮擦：切分笔迹（保证"被擦除的部分"真实不存在）
-     * ============================================================ */
 
     /**
      * 擦除：对每条笔迹按"点是否落在橡皮圆内"进行切分。
@@ -2103,6 +2289,10 @@ export class nWb {
 
         this.requestRender();
     }
+
+    /* ============================================================
+     * BBox 工具
+     * ============================================================ */
 
     /**
      * 把一条笔迹按橡皮圆切分成若干段。
@@ -2257,13 +2447,13 @@ export class nWb {
         return seg;
     }
 
-    /* ============================================================
-     * 矢量级选区交互
-     * ============================================================ */
-
     private isStrokeSelectable(s: Stroke): boolean {
         return s.mode === 'pen' || s.mode === 'spPen' || s.mode === 'image';
     }
+
+    /* ============================================================
+     * 对外回调
+     * ============================================================ */
 
     private startSelectInteraction(p: Point): void {
         const sel = this.selection;
@@ -2493,10 +2683,6 @@ export class nWb {
         this.emitSelectionChange();
     }
 
-    /* ============================================================
-     * Floating origin
-     * ============================================================ */
-
     private maybeRenormalize(): boolean {
         if (this.selection.mode === 'move' || this.selection.mode === 'resize') return false;
         if (Math.abs(this.cam.tx) < this.TH_RENORM &&
@@ -2528,10 +2714,6 @@ export class nWb {
         s.bbox.minY -= cy;
         s.bbox.maxY -= cy;
     }
-
-    /* ============================================================
-     * BBox 工具
-     * ============================================================ */
 
     private createBBox(w: Point, r: number): BBox {
         return {minX: w.x - r, maxX: w.x + r, minY: w.y - r, maxY: w.y + r};
@@ -2568,21 +2750,6 @@ export class nWb {
         return v < lo ? lo : v > hi ? hi : v;
     }
 
-    /* ============================================================
-     * 对外回调
-     * ============================================================ */
-
-    /** 页码变化回调（1-based）。 */
-    public onPageChange?: (pageIndex: number, pageCount: number) => void;
-    /** 缩放倍数变化回调。 */
-    public onScaleChange?: (scale: number) => void;
-    /** 选区状态变化回调。 */
-    public onSelectionChange?: (hasSelection: boolean) => void;
-    /** 撤销 / 重做可用性变化回调。 */
-    public onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
-    /** 主画布视口尺寸变化回调（CSS 像素）。 */
-    public onViewResize?: (width: number, height: number) => void;
-
     private emitPageChange() {
         this.onPageChange?.(this.pageIndex + 1, this.pages.length);
     }
@@ -2597,90 +2764,6 @@ export class nWb {
 
     private emitHistoryChange() {
         this.onHistoryChange?.(this.canUndo(), this.canRedo());
-    }
-
-    /**
-     * 获取当前所有触摸点的最新数据。
-     * 用于 UI 层查询多点触摸状态（例如显示"当前 N 个触摸点"）。
-     */
-    getTouchPoints(): TouchPointData[] {
-        return [...this.touchPointsData.values()];
-    }
-
-    /**
-     * 当前是否处于手掌擦除状态（希沃 / Ink Canvas 风格）。
-     */
-    isPalmErasing(): boolean {
-        return this.palmErase.active;
-    }
-
-    /**
-     * 清空当前页全部笔迹（记入历史，可撤销）。
-     */
-    clearCurrentPage(): void {
-        this.commitSelectionIfActive();
-        const page = this.pages[this.pageIndex];
-        if (!page) return;
-        page.strokes = [];
-        this.clearSelection();
-        this.requestRender();
-        if (!this.isRestoringHistory) this.pushHistory();
-    }
-
-    /** 获取当前主画布视口尺寸（CSS 像素） */
-    getViewSize(): { width: number; height: number } {
-        return { width: this.viewW, height: this.viewH };
-    }
-
-    /**
-     * 渲染指定页的缩略图到目标 canvas。
-     *
-     * 缩略图展示的是「以当前主画布视口对应的世界范围」为内容，
-     * 因此所有页的缩略图都在同一世界区域下，方便对比内容差异。
-     *
-     * @param pageIndex 页索引（0-based）
-     * @param canvas 目标 canvas
-     * @param cssW 目标 CSS 宽度（像素）
-     * @param cssH 目标 CSS 高度（像素）
-     */
-    renderPageThumbnail(
-        pageIndex: number,
-        canvas: HTMLCanvasElement,
-        cssW: number,
-        cssH: number,
-    ): void {
-        const page = this.pages[pageIndex];
-        if (!page) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = Math.max(1, Math.round(cssW * dpr));
-        canvas.height = Math.max(1, Math.round(cssH * dpr));
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        // 背景
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = page.bgcolor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 以主画布当前视口对应的世界矩形为内容范围
-        const mainCam = this.cam;
-        const wx0 = (0 - mainCam.tx) / mainCam.scale;
-        const wy0 = (0 - mainCam.ty) / mainCam.scale;
-        const wx1 = (this.viewW - mainCam.tx) / mainCam.scale;
-        const wy1 = (this.viewH - mainCam.ty) / mainCam.scale;
-
-        const sx = canvas.width / Math.max(1e-9, wx1 - wx0);
-        const sy = canvas.height / Math.max(1e-9, wy1 - wy0);
-
-        ctx.setTransform(sx, 0, 0, sy, -wx0 * sx, -wy0 * sy);
-
-        if (page.bgimg) ctx.drawImage(page.bgimg, 0, 0);
-
-        for (const s of page.strokes) {
-            this.drawStrokeToCtx(ctx, s);
-        }
     }
 }
 

@@ -1,37 +1,27 @@
 <template>
   <div class="menu-group">
     <button
-        class="menu-btn"
         :class="{ active: isPenActive }"
-        @click.stop="onPen"
         aria-label="画笔"
+        class="menu-btn"
+        @click.stop="onPen"
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 19l7-7 3 3-7 7-3-3z"/>
-        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
-        <path d="M2 2l7.586 7.586"/>
-        <circle cx="11" cy="11" r="2"/>
-      </svg>
+      <span class="i-mingcute-pen-line" style="font-size: 22px"/>
     </button>
     <button
-        class="menu-btn"
         :class="{ active: isEraserActive }"
-        @click.stop="onEraser"
         aria-label="橡皮"
+        class="menu-btn"
+        @click.stop="onEraser"
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 20H7L3 16a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.828 0l4.172 4.172a2 2 0 0 1 0 2.828L13 17"/>
-        <path d="M17 17L7 7"/>
-      </svg>
+      <span class="i-mingcute-eraser-line" style="font-size: 22px"/>
     </button>
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed, inject } from 'vue';
-import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {computed, inject} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
 
 const props = defineProps<{
   side: 'left' | 'right';
@@ -85,36 +75,46 @@ function onEraser() {
 .menu-group {
   display: flex;
   gap: 4px;
-  padding: 6px;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-radius: 18px;
-  box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.08),
-      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  border-radius: 22px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+  0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
 .menu-btn {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   background: transparent;
   color: #1D1D1F;
   cursor: pointer;
-  transition:
-      background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-      color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+  color 160ms cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
-.menu-btn:hover { background: rgba(0, 0, 0, 0.04); }
-.menu-btn:active { background: rgba(0, 0, 0, 0.08); }
-.menu-btn.active { background: #34C759; color: #FFFFFF; }
-.menu-btn.active:hover { background: #2AB34D; }
+.menu-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.menu-btn:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.menu-btn.active {
+  background: #34C759;
+  color: #FFFFFF;
+}
+
+.menu-btn.active:hover {
+  background: #2AB34D;
+}
 </style>

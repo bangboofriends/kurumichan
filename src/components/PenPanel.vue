@@ -1,15 +1,12 @@
 <template>
-  <div class="pen-panel" :class="`side-${side}`">
+  <div :class="`side-${side}`" class="pen-panel">
     <div class="panel-header">
       <div class="tabs">
-        <button class="tab" :class="{ active: tab === 'brush' }" @click="tab = 'brush'">画笔</button>
-        <button class="tab" :class="{ active: tab === 'palette' }" @click="tab = 'palette'">全色板</button>
+        <button :class="{ active: tab === 'brush' }" class="tab" @click="tab = 'brush'">画笔</button>
+        <button :class="{ active: tab === 'palette' }" class="tab" @click="tab = 'palette'">全色板</button>
       </div>
-      <button class="close-btn" @click="close" aria-label="关闭">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="2.2" stroke-linecap="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
+      <button aria-label="关闭" class="close-btn" @click="close">
+        <span class="i-mingcute-close-line" style="font-size: 16px"/>
       </button>
     </div>
 
@@ -18,16 +15,14 @@
         <span class="label">粗细</span>
         <div class="size-slider-wrap">
           <input
-              type="range"
-              class="size-slider"
-              :min="1"
               :max="40"
-              step="1"
-              :value="pen.thick"
+              :min="1"
+              :value="pen.thick" class="size-slider" step="1"
+              type="range"
               @input="onThickChange"
           />
           <div class="size-preview">
-            <div class="size-dot" :style="previewDotStyle"></div>
+            <div :style="previewDotStyle" class="size-dot"></div>
           </div>
         </div>
         <span class="size-value">{{ pen.thick }}</span>
@@ -39,11 +34,10 @@
           <button
               v-for="c in PRESET_COLORS"
               :key="c"
-              class="color-swatch"
               :class="{ active: pen.color === c, 'is-white': c.toLowerCase() === '#ffffff' }"
               :style="{ background: c }"
-              @click="onColorChange(c)"
-              :aria-label="`选择颜色 ${c}`"
+              class="color-swatch"
+              @click="pen.color = c"
           ></button>
         </div>
       </div>
@@ -52,7 +46,7 @@
     <div v-else class="panel-body palette-tab">
       <div class="palette-center">
         <label class="custom-color-btn">
-          <input type="color" :value="pen.color" @input="onCustomColor" />
+          <input :value="pen.color" type="color" @input="onCustomColor"/>
           <span>打开全色板</span>
         </label>
         <p class="hint">拖动色轮选择任意颜色</p>
@@ -61,9 +55,9 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, inject } from 'vue';
-import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {computed, inject, ref} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
 
 const props = defineProps<{
   side: 'left' | 'right' | 'center';
@@ -73,7 +67,6 @@ const props = defineProps<{
 const injectedId = inject<string | undefined>(PANEL_STORE_KEY, undefined);
 const resolvedStoreId = props.storeId ?? injectedId ?? DEFAULT_STORE_ID;
 const pen = usePenStore(resolvedStoreId);
-
 const tab = ref<'brush' | 'palette'>('brush');
 
 const PRESET_COLORS = [
@@ -93,10 +86,6 @@ function onThickChange(e: Event) {
   pen.thick = parseInt((e.target as HTMLInputElement).value, 10);
 }
 
-function onColorChange(c: string) {
-  pen.color = c;
-}
-
 function onCustomColor(e: Event) {
   const c = (e.target as HTMLInputElement).value;
   pen.color = c;
@@ -113,24 +102,32 @@ function close() {
 <style scoped>
 .pen-panel {
   position: fixed;
-  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 68px);
-  width: 340px;
-  background: rgba(255, 255, 255, 0.92);
+  bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 84px);
+  width: 360px;
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: saturate(180%) blur(24px);
   -webkit-backdrop-filter: saturate(180%) blur(24px);
   border-radius: 20px;
-  box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.12),
-      0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
+  0 0 0 0.5px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   z-index: 99;
   color: #1D1D1F;
   font-family: inherit;
 }
 
-.pen-panel.side-left { left: 24px; }
-.pen-panel.side-right { right: 24px; }
-.pen-panel.side-center { left: 50%; transform: translateX(-50%); }
+.pen-panel.side-left {
+  left: 28px;
+}
+
+.pen-panel.side-right {
+  right: 28px;
+}
+
+.pen-panel.side-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
 
 .panel-header {
   display: flex;
@@ -156,7 +153,7 @@ function close() {
   font-weight: 500;
   color: #6E6E73;
   cursor: pointer;
-  transition: all 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 160ms;
   -webkit-tap-highlight-color: transparent;
   font-family: inherit;
 }
@@ -178,22 +175,27 @@ function close() {
   border-radius: 50%;
   color: #6E6E73;
   cursor: pointer;
-  transition: background-color 160ms;
-  -webkit-tap-highlight-color: transparent;
 }
 
-.close-btn:hover { background: rgba(0, 0, 0, 0.08); }
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
 
-.panel-body { padding: 16px; }
+.panel-body {
+  padding: 16px;
+}
 
-.brush-tab { display: flex; gap: 20px; }
+.brush-tab {
+  display: flex;
+  gap: 20px;
+}
 
 .size-col {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  flex: 0 0 110px;
+  flex: 0 0 118px;
 }
 
 .label {
@@ -231,7 +233,6 @@ function close() {
   border-radius: 50%;
   background: #FFFFFF;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
 }
 
 .size-slider::-moz-range-thumb {
@@ -241,12 +242,11 @@ function close() {
   background: #FFFFFF;
   border: none;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
 }
 
 .size-preview {
-  width: 50px;
-  height: 50px;
+  width: 54px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -286,14 +286,22 @@ function close() {
   border-radius: 10px;
   cursor: pointer;
   position: relative;
-  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 120ms;
+  transition: transform 120ms, box-shadow 120ms;
   -webkit-tap-highlight-color: transparent;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.08);
 }
 
-.color-swatch.is-white { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
-.color-swatch:hover { transform: scale(1.06); }
-.color-swatch:active { transform: scale(0.96); }
+.color-swatch.is-white {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.color-swatch:hover {
+  transform: scale(1.06);
+}
+
+.color-swatch:active {
+  transform: scale(0.96);
+}
 
 .color-swatch.active {
   box-shadow: 0 0 0 2px #34C759, inset 0 0 0 2px #FFFFFF;
@@ -325,12 +333,14 @@ function close() {
   font-weight: 500;
   border-radius: 12px;
   cursor: pointer;
-  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 160ms;
   -webkit-tap-highlight-color: transparent;
   font-family: inherit;
 }
 
-.custom-color-btn:hover { background: #2AB34D; }
+.custom-color-btn:hover {
+  background: #2AB34D;
+}
 
 .custom-color-btn input {
   position: absolute;

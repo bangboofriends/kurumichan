@@ -1,32 +1,26 @@
 <template>
-  <div class="eraser-panel" :class="`side-${side}`">
+  <div :class="`side-${side}`" class="eraser-panel">
     <div class="panel-header">
       <span class="panel-title">滑动清屏</span>
-      <button class="close-btn" @click="close" aria-label="关闭">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="2.2" stroke-linecap="round">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
+      <button aria-label="关闭" class="close-btn" @click="close">
+        <span class="i-mingcute-close-line" style="font-size: 16px"/>
       </button>
     </div>
 
     <div class="panel-body">
-      <div class="slider-wrap" ref="sliderWrapRef">
+      <div ref="sliderWrapRef" class="slider-wrap">
         <div class="slider-track">
-          <div class="slider-fill" :style="{ width: `${progress}%` }"></div>
-          <div class="slider-hint" :class="{ complete: progress >= 99.5 }">
+          <div :style="{ width: `${progress}%` }" class="slider-fill"></div>
+          <div :class="{ complete: progress >= 99.5 }" class="slider-hint">
             {{ progress >= 99.5 ? '松开清屏' : '向右滑动清屏' }}
           </div>
         </div>
         <div
-            class="slider-thumb"
             :style="{ left: `calc(${progress}% - 14px)` }"
+            class="slider-thumb"
             @pointerdown="onThumbDown"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 18l6-6-6-6"/>
-          </svg>
+          <span class="i-mingcute-arrow-right-line" style="font-size: 16px; color: #34C759"/>
         </div>
       </div>
 
@@ -35,9 +29,9 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, inject, onBeforeUnmount } from 'vue';
-import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {inject, onBeforeUnmount, ref} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
 
 const props = defineProps<{
   side: 'left' | 'right' | 'center';
@@ -62,7 +56,10 @@ function onThumbDown(e: PointerEvent) {
   startProgress = progress.value;
 
   const thumb = e.currentTarget as HTMLElement;
-  try { thumb.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  try {
+    thumb.setPointerCapture(e.pointerId);
+  } catch { /* ignore */
+  }
 
   thumb.addEventListener('pointermove', onThumbMove);
   thumb.addEventListener('pointerup', onThumbUp);
@@ -74,10 +71,8 @@ function onThumbMove(e: PointerEvent) {
   const rect = sliderWrapRef.value.getBoundingClientRect();
   const usable = rect.width - 28;
   if (usable <= 0) return;
-
   const dx = e.clientX - startX;
-  const next = Math.max(0, Math.min(100, startProgress + (dx / usable) * 100));
-  progress.value = next;
+  progress.value = Math.max(0, Math.min(100, startProgress + (dx / usable) * 100));
 }
 
 function onThumbUp(e: PointerEvent) {
@@ -109,6 +104,7 @@ function animateBack() {
     if (t < 1) requestAnimationFrame(step);
     else progress.value = 0;
   }
+
   requestAnimationFrame(step);
 }
 
@@ -124,24 +120,32 @@ onBeforeUnmount(() => {
 <style scoped>
 .eraser-panel {
   position: fixed;
-  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 68px);
-  width: 340px;
-  background: rgba(255, 255, 255, 0.92);
+  bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 84px);
+  width: 360px;
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: saturate(180%) blur(24px);
   -webkit-backdrop-filter: saturate(180%) blur(24px);
   border-radius: 20px;
-  box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.12),
-      0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
+  0 0 0 0.5px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   z-index: 99;
   color: #1D1D1F;
   font-family: inherit;
 }
 
-.eraser-panel.side-left { left: 24px; }
-.eraser-panel.side-right { right: 24px; }
-.eraser-panel.side-center { left: 50%; transform: translateX(-50%); }
+.eraser-panel.side-left {
+  left: 28px;
+}
+
+.eraser-panel.side-right {
+  right: 28px;
+}
+
+.eraser-panel.side-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
 
 .panel-header {
   display: flex;
@@ -167,7 +171,6 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   color: #6E6E73;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .panel-body {
@@ -177,7 +180,6 @@ onBeforeUnmount(() => {
 .slider-wrap {
   position: relative;
   height: 32px;
-  margin: 0 auto;
 }
 
 .slider-track {
@@ -212,7 +214,9 @@ onBeforeUnmount(() => {
   transition: color 160ms;
 }
 
-.slider-hint.complete { color: #FFFFFF; }
+.slider-hint.complete {
+  color: #FFFFFF;
+}
 
 .slider-thumb {
   position: absolute;
@@ -226,14 +230,16 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #34C759;
   cursor: grab;
   touch-action: none;
   user-select: none;
   transition: transform 80ms;
 }
 
-.slider-thumb:active { cursor: grabbing; transform: scale(1.08); }
+.slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
 
 .hint-text {
   margin: 16px 0 0;

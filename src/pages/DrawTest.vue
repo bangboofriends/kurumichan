@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import {ref} from 'vue';
 import {usePenStore} from '@/store/penStore';
 import {useNwb} from '@/composables/useNwb';
@@ -9,7 +9,7 @@ const {actions} = useNwb({
   canvasRef,
   storeId: 'dwt1',                                     // ★
   effect: 'slide',
-  persist: false,   // 用 KeepAlive 的话不用开
+  persist: true,   // 用 KeepAlive 的话不用开
 });
 
 async function addPage() {
@@ -56,8 +56,8 @@ async function importAll() {
     <span class="divider"/>
 
     <!-- 颜色/粗细 -->
-    <input type="color" v-model="pen.color" :disabled="pen.tool !== 'pen'"/>
-    <input type="range" min="1" max="20" v-model.number="pen.thick" :disabled="pen.tool !== 'pen'"/>
+    <input v-model="pen.color" :disabled="pen.tool !== 'pen'" type="color"/>
+    <input v-model.number="pen.thick" :disabled="pen.tool !== 'pen'" max="20" min="1" type="range"/>
     <span>{{ pen.thick }}px</span>
 
     <span class="divider"/>

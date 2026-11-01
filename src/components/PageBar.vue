@@ -1,21 +1,17 @@
 <template>
   <div class="page-bar">
     <button
-        class="nav-btn"
         :disabled="pen.pageIndex <= 1"
-        @click="onPrev"
         aria-label="上一页"
+        class="nav-btn"
+        @click="onPrev"
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-           stroke="currentColor" stroke-width="2.2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M15 18l-6-6 6-6"/>
-      </svg>
+      <span class="i-mingcute-arrow-left-line" style="font-size: 20px"/>
     </button>
 
     <button
-        class="page-info"
         :class="{ active: pen.drawerOpen }"
+        class="page-info"
         @click="toggleDrawer"
     >
       <span class="num">{{ pen.pageIndex }}</span>
@@ -25,39 +21,26 @@
 
     <button
         v-if="isLastPage"
+        aria-label="新建页"
         class="nav-btn add"
         @click="onAdd"
-        aria-label="新建页"
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-           stroke="currentColor" stroke-width="2.4"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 5v14M5 12h14"/>
-      </svg>
+      <span class="i-mingcute-add-line" style="font-size: 22px"/>
     </button>
     <button
         v-else
+        aria-label="下一页"
         class="nav-btn"
         @click="onNext"
-        aria-label="下一页"
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-           stroke="currentColor" stroke-width="2.2"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
+      <span class="i-mingcute-arrow-right-line" style="font-size: 20px"/>
     </button>
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed, inject } from 'vue';
-import {
-  usePenStore,
-  PANEL_STORE_KEY,
-  NWB_INSTANCE_KEY,
-  DEFAULT_STORE_ID,
-} from '@/store';
+<script lang="ts" setup>
+import {computed, inject} from 'vue';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
 
 const props = defineProps<{ storeId?: string }>();
 
@@ -81,7 +64,6 @@ async function onAdd() {
   const inst = nwbRef?.value;
   if (!inst) return;
   await inst.newPage();
-  // 跳转到新建的那一页
   inst.goTo(inst.getPageCount());
 }
 
@@ -95,31 +77,29 @@ function toggleDrawer() {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-radius: 18px;
-  box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.08),
-      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  border-radius: 22px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+  0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
 .nav-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   background: transparent;
   color: #1D1D1F;
   cursor: pointer;
-  transition:
-      background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-      color 160ms,
-      transform 80ms;
+  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+  color 160ms,
+  transform 80ms;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
@@ -150,16 +130,16 @@ function toggleDrawer() {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 36px;
-  padding: 0 12px;
+  height: 44px;
+  padding: 0 16px;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   background: transparent;
   color: #1D1D1F;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 160ms;
   -webkit-tap-highlight-color: transparent;
   font-family: inherit;
   font-variant-numeric: tabular-nums;
@@ -174,7 +154,7 @@ function toggleDrawer() {
 }
 
 .page-info .num {
-  min-width: 14px;
+  min-width: 16px;
   text-align: center;
 }
 

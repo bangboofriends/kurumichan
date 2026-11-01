@@ -2,16 +2,13 @@ import { defineStore } from 'pinia';
 import { ref, shallowRef } from 'vue';
 import type { ToolType, nWbSpPenOptions, SerializedPage } from '@/nWb';
 
-export type PanelKind = 'pen' | 'eraser' | null;
+export type PanelKind =
+    | 'pen' | 'eraser' | 'menu' | 'about' | 'settings' | null;
+
 export type PanelSide = 'left' | 'right' | 'center';
 
-/** 组件里 storeId 的 fallback 值 */
 export const DEFAULT_STORE_ID = 'default';
-
-/** provide / inject 的 key：画笔 store id */
 export const PANEL_STORE_KEY = 'nwb:storeId';
-
-/** provide / inject 的 key：nWb 实例（用于缩略图渲染等） */
 export const NWB_INSTANCE_KEY = 'nwb:instance';
 
 function createPenStore(id: string) {
@@ -34,18 +31,14 @@ function createPenStore(id: string) {
         const hasSelection = ref(false);
         const canUndo = ref(false);
         const canRedo = ref(false);
-
-        /** 主画布视口尺寸（CSS px） */
         const viewW = ref(1);
         const viewH = ref(1);
 
-        // === 面板 ===
+        // === 面板 / 抽屉 ===
         const panelKind = ref<PanelKind>(null);
         const panelSide = ref<PanelSide>('center');
-        const customColors = ref<string[]>([]);
-
-        // === 页面抽屉 ===
         const drawerOpen = ref(false);
+        const customColors = ref<string[]>([]);
 
         // === 跨路由快照 ===
         const snapshot = shallowRef<SerializedPage[] | null>(null);
@@ -56,8 +49,7 @@ function createPenStore(id: string) {
             pageIndex, pageCount, scale, hasSelection,
             canUndo, canRedo,
             viewW, viewH,
-            panelKind, panelSide, customColors,
-            drawerOpen,
+            panelKind, panelSide, drawerOpen, customColors,
             snapshot,
         };
     });

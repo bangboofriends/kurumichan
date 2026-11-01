@@ -1,14 +1,14 @@
 <template>
   <div class="top-bar">
-    <PageBar :store-id="resolvedStoreId" />
+    <PageBar :store-id="resolvedStoreId"/>
   </div>
 
-  <PageDrawer :store-id="resolvedStoreId" />
+  <PageDrawer :store-id="resolvedStoreId"/>
 </template>
 
-<script setup lang="ts">
-import { inject } from 'vue';
-import { PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {inject} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY} from '@/store';
 import PageBar from '@/components/PageBar.vue';
 import PageDrawer from '@/components/PageDrawer.vue';
 

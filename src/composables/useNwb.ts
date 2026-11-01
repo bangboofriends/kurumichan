@@ -1,12 +1,6 @@
-import { onMounted, onUnmounted, shallowRef, watch, provide, type Ref } from 'vue';
-import {
-    nWb,
-    type PageEffect,
-    type TouchPointData,
-    type SerializedPage,
-    type ToolType,
-} from '@/nWb';
-import { usePenStore, NWB_INSTANCE_KEY } from '@/store';
+import {onMounted, onUnmounted, provide, type Ref, shallowRef, watch} from 'vue';
+import {nWb, type PageEffect, type SerializedPage, type ToolType, type TouchPointData,} from '@/nWb';
+import {NWB_INSTANCE_KEY, usePenStore} from '@/store';
 
 export interface DrawEventData {
     strokeId: string;
@@ -40,20 +34,22 @@ export function useNwb(options: UseNwbOptions) {
     const store = usePenStore(storeId);
     const nwb = shallowRef<nWb | null>(null);
 
-    // 让后代组件（如 PageDrawer）能拿到 nWb 实例
     provide(NWB_INSTANCE_KEY, nwb);
 
     onMounted(async () => {
         if (!canvasRef.value) return;
         const inst = new nWb();
 
-        // === nWb → store ===
         inst.onPageChange = (idx, total) => {
             store.pageIndex = idx;
             store.pageCount = total;
         };
-        inst.onScaleChange = (s) => { store.scale = s; };
-        inst.onSelectionChange = (has) => { store.hasSelection = has; };
+        inst.onScaleChange = (s) => {
+            store.scale = s;
+        };
+        inst.onSelectionChange = (has) => {
+            store.hasSelection = has;
+        };
         inst.onHistoryChange = (u, r) => {
             store.canUndo = u;
             store.canRedo = r;
@@ -63,34 +59,28 @@ export function useNwb(options: UseNwbOptions) {
             store.viewH = h;
         };
 
-        // === nWb 事件 → 组件回调 ===
         inst.addEventListener('onDraw', (d: DrawEventData) => onDraw?.(d));
         inst.addEventListener('onErase', (d: EraseEventData) => onErase?.(d));
         inst.addEventListener('onTouch', (d: TouchPointData) => onTouch?.(d));
         inst.addEventListener('onPointerDown', (e: PointerEvent) => onPointerDown?.(e));
         inst.addEventListener('onPointerUp', (e: PointerEvent) => onPointerUp?.(e));
 
-        // === 初始化 ===
         await inst.init({
             canvas: canvasRef.value,
             changePageEffect: effect,
             mode,
         });
 
-        // === 初始同步 ===
         inst.setPalmAreaSize(store.palmAreaSize);
         if (store.eraserImage) inst.setEraserImage(store.eraserImage);
 
-        // === 恢复快照 ===
         if (persist && store.snapshot && store.snapshot.length) {
             await inst.importPages(store.snapshot);
             inst.resetHistory();
         }
 
-        // === 应用工具 ===
         applyTool(inst, store);
 
-        // === 同步初始状态 ===
         const size = inst.getViewSize();
         store.viewW = size.width;
         store.viewH = size.height;
@@ -108,13 +98,11 @@ export function useNwb(options: UseNwbOptions) {
         nwb.value = null;
     });
 
-    // === store → nWb 同步 ===
-
     watch(
         () => [store.color, store.thick, nwb.value] as const,
         () => {
             if (store.tool === 'pen' && nwb.value) {
-                nwb.value.setPen({ color: store.color, thick: store.thick });
+                nwb.value.setPen({color: store.color, thick: store.thick});
             }
         },
     );
@@ -140,15 +128,18 @@ export function useNwb(options: UseNwbOptions) {
 
     watch(
         () => store.eraserImage,
-        (src) => { nwb.value?.setEraserImage(src); },
+        (src) => {
+            nwb.value?.setEraserImage(src);
+        },
     );
 
     watch(
         () => store.palmAreaSize,
-        (size) => { nwb.value?.setPalmAreaSize(size); },
+        (size) => {
+            nwb.value?.setPalmAreaSize(size);
+        },
     );
 
-    // === actions ===
     const actions = {
         goNext: () => nwb.value?.goNext(),
         goPrev: () => nwb.value?.goPrev(),
@@ -164,20 +155,28 @@ export function useNwb(options: UseNwbOptions) {
         cancelSelection: () => nwb.value?.cancelSelection(),
         hasSelection: () => nwb.value?.hasSelection() ?? false,
         clearCurrentPage: () => nwb.value?.clearCurrentPage(),
-        setEraserImage: (src: string | null) => { store.eraserImage = src; },
-        setPalmAreaSize: (size: number) => { store.palmAreaSize = size; },
+        setEraserImage: (src: string | null) => {
+            store.eraserImage = src;
+        },
+        setPalmAreaSize: (size: number) => {
+            store.palmAreaSize = size;
+        },
         getTouchPoints: () => nwb.value?.getTouchPoints() ?? [],
         isPalmErasing: () => nwb.value?.isPalmErasing() ?? false,
+        renderHQImage: (
+            range?: 'all' | number | [number, number],
+            opts?: Parameters<nWb['renderHQImage']>[1],
+        ) => nwb.value?.renderHQImage(range, opts) ?? [],
     };
 
-    return { nwb, actions };
+    return {nwb, actions};
 }
 
 function applyTool(inst: nWb | null, store: ReturnType<typeof usePenStore>) {
     if (!inst) return;
     const tool = store.tool as ToolType;
     if (tool === 'pen') {
-        inst.setPen({ color: store.color, thick: store.thick });
+        inst.setPen({color: store.color, thick: store.thick});
     } else if (tool === 'spPen') {
         if (store.spPen) inst.setSpPen(store.spPen);
     } else if (tool === 'eraser') {
