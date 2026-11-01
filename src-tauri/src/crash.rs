@@ -85,10 +85,7 @@ pub fn resolve_paths(app: &tauri::AppHandle) -> Result<CrashPaths, String> {
 }
 
 #[tauri::command]
-pub fn write_recovery_file(
-    app: tauri::AppHandle,
-    data: serde_json::Value,
-) -> Result<(), String> {
+pub fn write_recovery_file(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), String> {
     let path = recovery_path(&app)?;
     let payload = RecoveryFile {
         saved_at_ms: now_ms().unwrap_or(0),
