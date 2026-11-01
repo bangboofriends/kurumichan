@@ -1,6 +1,7 @@
 @font-face {
     font-family: "harmonysans";
-    src: url("@/assets/fonts/hossm.ttf");
+    src: url("@/assets/fonts/hossm.ttf"),
+    url("@/assets/fonts/hossm.woff") format("woff");
 }
 
 body {

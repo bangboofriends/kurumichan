@@ -19,14 +19,8 @@
  *  - 版本迁移入口
  */
 
-import {
-    zipSync,
-    unzipSync,
-    strToU8,
-    strFromU8,
-    type Unzipped,
-} from 'fflate';
-import type { SerializedPage, SerializedStroke } from '.';
+import {strFromU8, strToU8, type Unzipped, unzipSync, zipSync,} from 'fflate';
+import type {SerializedPage, SerializedStroke} from '.';
 
 // ============================================================
 // 常量
@@ -185,7 +179,7 @@ function dataUrlToBytes(src: string): ParsedAsset | null {
         const bytes = isB64
             ? Uint8Array.from(atob(data), c => c.charCodeAt(0))
             : new TextEncoder().encode(decodeURIComponent(data));
-        return { mime, bytes };
+        return {mime, bytes};
     } catch {
         return null;
     }
@@ -463,7 +457,7 @@ export async function saveKrmc(
         const out: KrmcPage = {
             id: p.id,
             bgcolor: p.bgcolor,
-            cam: { ...p.cam },
+            cam: {...p.cam},
             strokes,
         };
         const bg = await toAssetRef(p.bgimgSrc, ctx);
@@ -511,9 +505,9 @@ export async function saveKrmc(
     const files: Record<string, FileEntry | Uint8Array> = {};
 
     // mimetype：固定第一个、不压缩
-    files['mimetype'] = [strToU8(KRMC_MIME), { level: 0 }];
-    files['manifest.json'] = [strToU8(JSON.stringify(manifest)), { level: compressionLevel }];
-    files['document.json'] = [strToU8(JSON.stringify(doc)), { level: compressionLevel }];
+    files['mimetype'] = [strToU8(KRMC_MIME), {level: 0}];
+    files['manifest.json'] = [strToU8(JSON.stringify(manifest)), {level: compressionLevel}];
+    files['document.json'] = [strToU8(JSON.stringify(doc)), {level: compressionLevel}];
 
     // 缩略图
     if (thumbnail) {
@@ -522,22 +516,22 @@ export async function saveKrmc(
             const ext = parsed.mime.includes('webp') ? 'webp'
                 : parsed.mime.includes('png') ? 'png'
                     : 'jpg';
-            files[`thumbnail.${ext}`] = [parsed.bytes, { level: compressionLevel }];
+            files[`thumbnail.${ext}`] = [parsed.bytes, {level: compressionLevel}];
         }
     }
 
     // 资源
     for (const a of assetList) {
-        files[a.file] = [ctx.assets.get(a.hash)!.bytes, { level: compressionLevel }];
+        files[a.file] = [ctx.assets.get(a.hash)!.bytes, {level: compressionLevel}];
     }
 
     // 二进制笔画
     for (const [path, bytes] of strokeBinFiles) {
-        files[path] = [bytes, { level: compressionLevel }];
+        files[path] = [bytes, {level: compressionLevel}];
     }
 
-    const zip = zipSync(files as any, { level: compressionLevel as any });
-    return new Blob([zip], { type: KRMC_MIME });
+    const zip = zipSync(files as any, {level: compressionLevel as any});
+    return new Blob([zip], {type: KRMC_MIME});
 }
 
 // ============================================================
@@ -555,7 +549,7 @@ export async function loadKrmc(
     input: Blob | ArrayBuffer | Uint8Array,
     options: KrmcLoadOptions = {},
 ): Promise<KrmcLoadResult> {
-    const { verifyHash = false } = options;
+    const {verifyHash = false} = options;
 
     // ---- 统一字节 ----
     let bytes: Uint8Array;
@@ -770,7 +764,7 @@ export async function loadKrmc(
         const page: SerializedPage = {
             id: p.id,
             bgcolor: p.bgcolor,
-            cam: { ...p.cam },
+            cam: {...p.cam},
             strokes,
         };
         const bg = await resolveRef(p.bgimg);
@@ -779,7 +773,7 @@ export async function loadKrmc(
         pages.push(page);
     }
 
-    return { pages, manifest };
+    return {pages, manifest};
 }
 
 // ============================================================

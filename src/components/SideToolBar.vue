@@ -2,52 +2,52 @@
   <div class="side-toolbar">
     <!-- 菜单 -->
     <button
-        class="tb-btn"
         :class="{ active: isMenuOpen }"
-        @click="onMenu"
         aria-label="菜单"
+        class="tb-btn"
+        @click="onMenu"
     >
-      <span class="i-mingcute-menu-line" style="font-size: 22px" />
+      <span class="i-mingcute-menu-line" style="font-size: 22px"/>
     </button>
 
-    <div class="tb-divider" />
+    <div class="tb-divider"/>
 
     <!-- 笔 -->
     <button
-        class="tb-btn"
         :class="{ active: isPenActive }"
-        @click="onPen"
         aria-label="画笔"
+        class="tb-btn"
+        @click="onPen"
     >
-      <span class="i-mingcute-pen-line" style="font-size: 22px" />
+      <span class="i-mingcute-pen-line" style="font-size: 22px"/>
     </button>
 
     <!-- 橡皮 -->
     <button
-        class="tb-btn"
         :class="{ active: isEraserActive }"
-        @click="onEraser"
         aria-label="橡皮"
+        class="tb-btn"
+        @click="onEraser"
     >
-      <span class="i-mingcute-eraser-line" style="font-size: 22px" />
+      <span class="i-mingcute-eraser-line" style="font-size: 22px"/>
     </button>
 
-    <div class="tb-divider" />
+    <div class="tb-divider"/>
 
     <!-- 最小化 -->
     <button
+        aria-label="最小化"
         class="tb-btn"
         @click="onMinimize"
-        aria-label="最小化"
     >
-      <span class="i-mingcute-down-line" style="font-size: 22px" />
+      <span class="i-mingcute-down-line" style="font-size: 22px"/>
     </button>
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed, inject } from 'vue';
-import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {computed, inject} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
 
 const props = defineProps<{
   side: 'left' | 'right';
@@ -110,7 +110,7 @@ function onEraser() {
 }
 
 function onMinimize() {
-  window.dispatchEvent(new CustomEvent('nwb:command', { detail: { type: 'minimize' } }));
+  window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type: 'minimize'}}));
 }
 </script>
 
@@ -124,9 +124,8 @@ function onMinimize() {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-radius: 22px;
-  box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.08),
-      0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+  0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
 .tb-btn {
@@ -140,18 +139,28 @@ function onMinimize() {
   background: transparent;
   color: #1D1D1F;
   cursor: pointer;
-  transition:
-      background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-      color 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+  color 160ms cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
 
-.tb-btn:hover { background: rgba(0, 0, 0, 0.04); }
-.tb-btn:active { background: rgba(0, 0, 0, 0.08); }
+.tb-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
 
-.tb-btn.active { background: #34C759; color: #FFFFFF; }
-.tb-btn.active:hover { background: #2AB34D; }
+.tb-btn:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tb-btn.active {
+  background: #34C759;
+  color: #FFFFFF;
+}
+
+.tb-btn.active:hover {
+  background: #2AB34D;
+}
 
 .tb-divider {
   width: 1px;

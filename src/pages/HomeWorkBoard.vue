@@ -1,14 +1,19 @@
 <template>
   <div class="wb-page">
     <canvas ref="canvasRef" class="wb-canvas"></canvas>
-    <BottomBarLite :store-id="STORE_ID" />
+    <BottomBarLite :store-id="STORE_ID"/>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, provide, onMounted, onBeforeUnmount } from 'vue';
-import { usePenStore, PANEL_STORE_KEY } from '@/store';
-import { useNwb } from '@/composables/useNwb';
+<script lang="ts" setup>
+
+document.addEventListener('contextmenu', function(e) {
+  e.preventDefault(); // 阻止默认的右键菜单弹出
+});
+
+import {onBeforeUnmount, onMounted, provide, ref} from 'vue';
+import {PANEL_STORE_KEY, usePenStore} from '@/store';
+import {useNwb} from '@/composables/useNwb';
 import BottomBarLite from '@/components/BottomBarLite.vue';
 
 const STORE_ID = 'hwb';
@@ -17,7 +22,7 @@ provide(PANEL_STORE_KEY, STORE_ID);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const pen = usePenStore(STORE_ID);
 
-const { actions } = useNwb({
+const {actions} = useNwb({
   canvasRef,
   storeId: STORE_ID,
   effect: 'none',
@@ -56,7 +61,7 @@ function handleCommand(e: Event) {
 }
 
 function handleExport() {
-  const urls = actions.renderHQImage('all', { scale: 2, format: 'png' });
+  const urls = actions.renderHQImage('all', {scale: 2, format: 'png'});
   if (!urls.length) {
     console.warn('[nWb] 导出：无页面内容');
     return;

@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia';
-import { ref, shallowRef } from 'vue';
-import type { ToolType, nWbSpPenOptions, SerializedPage } from '@/nWb';
+import {defineStore} from 'pinia';
+import {ref, shallowRef} from 'vue';
+import type {nWbSpPenOptions, SerializedPage, ToolType} from '@/nWb';
 
 export type PanelKind =
     | 'pen' | 'eraser' | 'menu' | 'about' | 'settings' | null;

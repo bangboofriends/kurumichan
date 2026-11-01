@@ -1,11 +1,11 @@
 <template>
   <div :class="`side-${side}`" class="menu-panel">
     <div class="panel-body">
-      <button class="row" @click="handleExport" :disabled="busy">
+      <button :disabled="busy" class="row" @click="handleExport">
         <span class="i-mingcute-download-2-line" style="font-size: 20px"/>
         <span>{{ busy ? '处理中…' : '导出' }}</span>
       </button>
-      <button class="row" @click="handleImport" :disabled="busy">
+      <button :disabled="busy" class="row" @click="handleImport">
         <span class="i-mingcute-upload-2-line" style="font-size: 20px"/>
         <span>{{ busy ? '处理中…' : '导入' }}</span>
       </button>
@@ -27,14 +27,9 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, ref } from 'vue';
-import {
-  DEFAULT_STORE_ID,
-  NWB_INSTANCE_KEY,
-  PANEL_STORE_KEY,
-  usePenStore,
-} from '@/store';
-import { saveKrmc, loadKrmc, renderKrmcThumbnail } from '@/nWb/krmc';
+import {inject, ref} from 'vue';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
+import {loadKrmc, renderKrmcThumbnail, saveKrmc} from '@/nWb/krmc';
 
 const props = defineProps<{
   side: 'left' | 'right' | 'center';
@@ -111,7 +106,7 @@ async function handleImport() {
 
     busy.value = true;
     try {
-      const { pages, manifest } = await loadKrmc(file);
+      const {pages, manifest} = await loadKrmc(file);
       if (!pages.length) {
         alert('文件里没有可用页面');
         return;
@@ -135,7 +130,7 @@ async function handleImport() {
 }
 
 function fire(type: string) {
-  window.dispatchEvent(new CustomEvent('nwb:command', { detail: { type } }));
+  window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type}}));
   pen.panelKind = null;
 }
 

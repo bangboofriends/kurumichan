@@ -2,18 +2,18 @@
   <div class="bottom-bar">
     <!-- 左侧栏：菜单 / 笔 / 橡皮 / 最小化 -->
     <div class="side side-left">
-      <SideToolbar side="left" :store-id="resolvedStoreId" />
+      <SideToolbar :store-id="resolvedStoreId" side="left"/>
     </div>
 
     <!-- 中间：翻页 + 关闭 -->
     <div class="side side-center">
-      <PageBar :store-id="resolvedStoreId" />
-      <CloseButton @close="onClose" />
+      <PageBar :store-id="resolvedStoreId"/>
+      <CloseButton @close="onClose"/>
     </div>
 
     <!-- 右侧栏：菜单 / 笔 / 橡皮 / 最小化 -->
     <div class="side side-right">
-      <SideToolbar side="right" :store-id="resolvedStoreId" />
+      <SideToolbar :store-id="resolvedStoreId" side="right"/>
     </div>
   </div>
 
@@ -52,12 +52,12 @@
     />
   </Transition>
 
-  <PageDrawer :store-id="resolvedStoreId" />
+  <PageDrawer :store-id="resolvedStoreId"/>
 </template>
 
-<script setup lang="ts">
-import { inject } from 'vue';
-import { usePenStore, PANEL_STORE_KEY, DEFAULT_STORE_ID } from '@/store';
+<script lang="ts" setup>
+import {inject} from 'vue';
+import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
 import SideToolbar from '@/components/SideToolBar.vue';
 import CloseButton from '@/components/CloseButton.vue';
 import PageBar from '@/components/PageBar.vue';
@@ -75,7 +75,7 @@ const resolvedStoreId = props.storeId ?? injectedId ?? DEFAULT_STORE_ID;
 const pen = usePenStore(resolvedStoreId);
 
 function onClose() {
-  window.dispatchEvent(new CustomEvent('nwb:command', { detail: { type: 'close' } }));
+  window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type: 'close'}}));
 }
 </script>
 
@@ -101,15 +101,22 @@ function onClose() {
   gap: 8px;
 }
 
-.side-left { justify-content: flex-start; }
-.side-center { justify-content: center; }
-.side-right { justify-content: flex-end; }
+.side-left {
+  justify-content: flex-start;
+}
+
+.side-center {
+  justify-content: center;
+}
+
+.side-right {
+  justify-content: flex-end;
+}
 
 .panel-enter-active,
 .panel-leave-active {
-  transition:
-      opacity 220ms cubic-bezier(0.4, 0, 0.2, 1),
-      transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 220ms cubic-bezier(0.4, 0, 0.2, 1),
+  transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .panel-enter-from,

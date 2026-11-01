@@ -4,8 +4,8 @@
       <div class="drawer-panel" @click.stop>
         <div class="drawer-header">
           <span class="drawer-title">页面</span>
-          <button class="close-btn" @click="close" aria-label="关闭">
-            <span class="i-mingcute-close-line" style="font-size: 16px" />
+          <button aria-label="关闭" class="close-btn" @click="close">
+            <span class="i-mingcute-close-line" style="font-size: 16px"/>
           </button>
         </div>
 
@@ -14,21 +14,21 @@
             <button
                 v-for="i in pen.pageCount"
                 :key="i"
-                class="thumb"
                 :class="{ active: i === pen.pageIndex }"
+                class="thumb"
                 @click="onJump(i)"
             >
               <canvas
                   :ref="(el) => setCanvasRef(i - 1, el)"
-                  class="thumb-canvas"
                   :style="{ aspectRatio }"
+                  class="thumb-canvas"
               ></canvas>
               <span class="thumb-label">{{ i }}</span>
             </button>
           </div>
 
           <button class="add-btn" @click="onAddPage">
-            <span class="i-mingcute-add-line" style="font-size: 18px" />
+            <span class="i-mingcute-add-line" style="font-size: 18px"/>
             <span>新建页</span>
           </button>
         </div>
@@ -37,14 +37,9 @@
   </Transition>
 </template>
 
-<script setup lang="ts">
-import { computed, inject, ref, watch, nextTick, onBeforeUnmount } from 'vue';
-import {
-  usePenStore,
-  PANEL_STORE_KEY,
-  NWB_INSTANCE_KEY,
-  DEFAULT_STORE_ID,
-} from '@/store';
+<script lang="ts" setup>
+import {computed, inject, nextTick, onBeforeUnmount, ref, watch} from 'vue';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
 
 const props = defineProps<{ storeId?: string }>();
 
@@ -95,7 +90,10 @@ async function renderAfterLayout() {
 watch(
     () => pen.drawerOpen,
     async (open) => {
-      if (!open) { canvasRefs.value = []; return; }
+      if (!open) {
+        canvasRefs.value = [];
+        return;
+      }
       await renderAfterLayout();
     },
 );
@@ -107,10 +105,18 @@ watch(
     },
 );
 
-onBeforeUnmount(() => { canvasRefs.value = []; });
+onBeforeUnmount(() => {
+  canvasRefs.value = [];
+});
 
-function close() { pen.drawerOpen = false; }
-function onJump(i: number) { nwbRef?.value?.goTo(i); close(); }
+function close() {
+  pen.drawerOpen = false;
+}
+
+function onJump(i: number) {
+  nwbRef?.value?.goTo(i);
+  close();
+}
 
 async function onAddPage() {
   const inst = nwbRef?.value;
@@ -155,7 +161,10 @@ async function onAddPage() {
   flex-shrink: 0;
 }
 
-.drawer-title { font-size: 16px; font-weight: 600; }
+.drawer-title {
+  font-size: 16px;
+  font-weight: 600;
+}
 
 .close-btn {
   width: 28px;
@@ -170,7 +179,9 @@ async function onAddPage() {
   cursor: pointer;
 }
 
-.close-btn:hover { background: rgba(0, 0, 0, 0.08); }
+.close-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
 
 .drawer-body {
   flex: 1;
@@ -194,16 +205,25 @@ async function onAddPage() {
   background: #F5F5F7;
   overflow: hidden;
   cursor: pointer;
-  transition:
-      border-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
-      transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 160ms cubic-bezier(0.4, 0, 0.2, 1),
+  transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
 }
 
-.thumb:hover { transform: translateY(-1px); }
-.thumb.active { border-color: #34C759; }
+.thumb:hover {
+  transform: translateY(-1px);
+}
 
-.thumb-canvas { display: block; width: 100%; height: auto; border-radius: 8px; }
+.thumb.active {
+  border-color: #34C759;
+}
+
+.thumb-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
 
 .thumb-label {
   position: absolute;
@@ -257,8 +277,12 @@ async function onAddPage() {
 }
 
 .drawer-enter-from,
-.drawer-leave-to { opacity: 0; }
+.drawer-leave-to {
+  opacity: 0;
+}
 
 .drawer-enter-from .drawer-panel,
-.drawer-leave-to .drawer-panel { transform: translateX(100%); }
+.drawer-leave-to .drawer-panel {
+  transform: translateX(100%);
+}
 </style>
