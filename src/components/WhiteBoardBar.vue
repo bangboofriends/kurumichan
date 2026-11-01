@@ -20,6 +20,14 @@
           <span class="i-mingcute-down-line icon"/>
           <span class="label">最小化</span>
         </button>
+        <button
+            aria-label="展台"
+            class="bar-btn"
+            @click="onVisualizer"
+        >
+          <span class="i-mingcute-camera-line icon"/>
+          <span class="label">展台</span>
+        </button>
       </div>
     </div>
 
@@ -233,6 +241,10 @@ function onMenu() {
 
 function onMinimize() {
   window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type: 'minimize'}}));
+}
+
+function onVisualizer() {
+  window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type: 'visualizer'}}));
 }
 
 /* ==================== 中间工具 ==================== */

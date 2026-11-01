@@ -51,7 +51,25 @@ function handleCommand(e: Event) {
     case 'exit':
       handleExit();
       break;
+    case 'visualizer':
+      handleVisualizer();
+      break;
   }
+}
+
+/**
+ * 打开视频展台（预留，等待 Tauri 接入）。
+ *
+ * 预期流程：
+ *   1. Tauri 侧枚举摄像头设备（视频展台本质是一个 USB 摄像头）
+ *   2. 打开独立展台窗口（Tauri WebviewWindow）或内嵌画面，
+ *      通过 getUserMedia / Rust 原生抓帧把实时画面显示出来
+ *   3. 可选：画面拍照后作为 image 笔迹插入当前白板页（nwb.addImage）
+ *
+ * TODO(tauri-visualizer): 当前为空实现，待后续接入
+ */
+function handleVisualizer() {
+  console.info('[nWb] 视频展台功能尚未接入（预留）');
 }
 
 /**

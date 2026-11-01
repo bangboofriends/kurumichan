@@ -1,6 +1,6 @@
 import {onMounted, onUnmounted, provide, type Ref, shallowRef, watch} from 'vue';
 import {nWb, type PageEffect, type SerializedPage, type ToolType, type TouchPointData,} from '@/nWb';
-import {NWB_INSTANCE_KEY, usePenStore} from '@/store';
+import {NWB_INSTANCE_KEY, usePenStore, useSettingsStore} from '@/store';
 
 export interface DrawEventData {
     strokeId: string;
@@ -32,6 +32,7 @@ export function useNwb(options: UseNwbOptions) {
         onDraw, onErase, onTouch, onPointerDown, onPointerUp,
     } = options;
     const store = usePenStore(storeId);
+    const settingsStore = useSettingsStore();
     const nwb = shallowRef<nWb | null>(null);
 
     provide(NWB_INSTANCE_KEY, nwb);
@@ -78,6 +79,10 @@ export function useNwb(options: UseNwbOptions) {
             await inst.importPages(store.snapshot);
             inst.resetHistory();
         }
+
+        // 应用全局设置中的画笔默认值（仅初始化时应用一次，之后以用户交互为准）
+        store.color = settingsStore.settings.penToolDefaultColor;
+        store.thick = settingsStore.settings.penToolDefaultSize;
 
         applyTool(inst, store);
 
@@ -138,6 +143,22 @@ export function useNwb(options: UseNwbOptions) {
         (size) => {
             nwb.value?.setPalmAreaSize(size);
         },
+    );
+
+    // 全局设置 → 当前画板：橡皮大小 / 手掌阈值实时同步
+    watch(
+        () => settingsStore.settings.eraserSize,
+        (v) => {
+            store.eraserSize = v;
+        },
+        {immediate: true},
+    );
+    watch(
+        () => settingsStore.settings.handSizeValve,
+        (v) => {
+            store.palmAreaSize = v;
+        },
+        {immediate: true},
     );
 
     const actions = {

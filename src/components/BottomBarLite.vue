@@ -5,9 +5,13 @@
       <SideToolbar :store-id="resolvedStoreId" side="left"/>
     </div>
 
-    <!-- 中间：翻页 + 关闭 -->
+    <!-- 中间：翻页 + OCR + 关闭 -->
     <div class="side side-center">
       <PageBar :store-id="resolvedStoreId"/>
+      <button :disabled="ocrBusy" aria-label="OCR" class="ocr-btn" @click="onOcr">
+        <span class="i-mingcute-ocr-line ocr-icon"/>
+        <span class="label">{{ ocrBusy ? '识别中…' : 'OCR' }}</span>
+      </button>
       <CloseButton @close="onClose"/>
     </div>
 
@@ -56,8 +60,9 @@
 </template>
 
 <script lang="ts" setup>
-import {inject} from 'vue';
-import {DEFAULT_STORE_ID, PANEL_STORE_KEY, usePenStore} from '@/store';
+import {inject, ref} from 'vue';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore, useSettingsStore} from '@/store';
+import {recognizeWhiteboardText, recognizeWhiteboardTextBackend} from '@/nWb/ocr';
 import SideToolbar from '@/components/SideToolBar.vue';
 import CloseButton from '@/components/CloseButton.vue';
 import PageBar from '@/components/PageBar.vue';
@@ -76,6 +81,42 @@ const pen = usePenStore(resolvedStoreId);
 
 function onClose() {
   window.dispatchEvent(new CustomEvent('nwb:command', {detail: {type: 'close'}}));
+}
+
+/* ==================== OCR ==================== */
+
+const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
+const settingsStore = useSettingsStore();
+
+const ocrBusy = ref(false);
+
+/**
+ * OCR 识别：按设置里的 ocrMode 分发。
+ * fe = 前端 PaddleOCR；be = Tauri 后端（预留，当前会提示尚未接入）
+ */
+async function onOcr() {
+  const inst = nwbRef?.value;
+  if (!inst || ocrBusy.value) return;
+  ocrBusy.value = true;
+  try {
+    const text = settingsStore.settings.ocrMode === 'fe'
+        ? await recognizeWhiteboardText(inst)
+        : await recognizeWhiteboardTextBackend(inst);
+    if (text.trim()) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        /* 剪贴板不可用时忽略 */
+      }
+      alert(`识别结果（已复制到剪贴板）：\n\n${text}`);
+    } else {
+      alert('未识别到文字');
+    }
+  } catch (e) {
+    alert((e as Error).message);
+  } finally {
+    ocrBusy.value = false;
+  }
 }
 </script>
 
@@ -107,6 +148,48 @@ function onClose() {
 
 .side-center {
   justify-content: center;
+}
+
+/* OCR 按钮 */
+.ocr-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 52px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  color: #1D1D1F;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08),
+  0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  transition: background-color 160ms, transform 80ms;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  font-family: inherit;
+}
+
+.ocr-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.ocr-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.ocr-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ocr-icon {
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .side-right {

@@ -105,6 +105,10 @@ export async function getOcr(options?: OcrOptions): Promise<PaddleOcrInstance> {
             lang: options?.lang ?? 'ch',
             ocrVersion: options?.ocrVersion ?? 'PP-OCRv6',
             worker: options?.worker ?? true,
+            // Worker 模式下 onnxruntime-web 需要 wasm 文件地址。
+            // 构建产物已将 wasm 输出到 dist/assets，直接指向本地路径，
+            // 避免回退到 CDN（jsdelivr），保证主线程与 Worker 版本一致
+            ortOptions: {wasmPaths: '/assets/'},
         };
 
         // 自定义模型地址（如果提供）
@@ -219,4 +223,85 @@ export function disposeOcr(): void {
         ocrInstance = null;
     }
     loadingPromise = null;
+}
+
+// ============================================================
+// 白板集成
+// ============================================================
+
+/** dataURL → HTMLImageElement */
+function dataUrlToImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('ocr: 图片解码失败'));
+        img.src = dataUrl;
+    });
+}
+
+/** 从主画布裁剪选区图像（参照 nwbdoc 10.5，访问内核私有字段） */
+function cropSelectionCanvas(nwb: any): HTMLCanvasElement | null {
+    const sel = nwb.selection;
+    const cam = nwb.cam;
+    const mainCanvas: HTMLCanvasElement | undefined = nwb.canvas;
+    if (!sel || !cam || !mainCanvas) return null;
+
+    const dpr = window.devicePixelRatio || 1;
+    const sx = sel.x * cam.scale + cam.tx;
+    const sy = sel.y * cam.scale + cam.ty;
+    const sw = sel.w * cam.scale;
+    const sh = sel.h * cam.scale;
+    if (sw <= 0 || sh <= 0) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(sw * dpr));
+    canvas.height = Math.max(1, Math.round(sh * dpr));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(
+        mainCanvas,
+        sx * dpr, sy * dpr, sw * dpr, sh * dpr,
+        0, 0, canvas.width, canvas.height,
+    );
+    return canvas;
+}
+
+/**
+ * 识别白板内容文字（PaddleOCR，前端本地推理）。
+ *
+ * 优先识别圈选区域；无选区时识别当前页的高清渲染图。
+ * 首次调用会下载 ONNX 模型（几 MB）。
+ */
+export async function recognizeWhiteboardText(
+    nwb: any,
+    options?: OcrOptions & { params?: Record<string, any> },
+): Promise<string> {
+    if (!nwb) throw new Error('ocr: 白板实例不存在');
+
+    // 优先识别圈选区域
+    if (typeof nwb.hasSelection === 'function' && nwb.hasSelection()) {
+        const cropped = cropSelectionCanvas(nwb);
+        if (cropped) return recognizeText(cropped, options);
+    }
+
+    // 无选区：渲染当前页（getPageIndex 返回 1-based，renderHQImage 需要 0-based）
+    const pageIndex =
+        typeof nwb.getPageIndex === 'function' ? nwb.getPageIndex() - 1 : 0;
+    const urls: string[] = nwb.renderHQImage(pageIndex, {scale: 2, format: 'png'});
+    if (!urls?.length) throw new Error('ocr: 当前页无可识别内容');
+    const img = await dataUrlToImage(urls[0]);
+    return recognizeText(img, options);
+}
+
+/**
+ * 识别白板内容文字（Tauri 后端，预留）。
+ *
+ * 等待后端接入。预期流程：
+ *   renderHQImage → 图片字节 → invoke('ocr_recognize', { bytes })
+ *   → Rust 侧调用本地 OCR 引擎（如 RapidOCR）→ 返回文本
+ * 好处：无需前端下载 ONNX 模型，识别速度与内存占用更优。
+ */
+export async function recognizeWhiteboardTextBackend(_nwb: any): Promise<string> {
+    // TODO(tauri-ocr): 后端 OCR 尚未接入，等待后续实现
+    throw new Error('OCR 后端尚未接入，敬请期待');
 }

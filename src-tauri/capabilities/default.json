@@ -11,6 +11,7 @@
     "core:window:allow-close",
     "fs:allow-write-file",
     "fs:allow-write-text-file",
+    "fs:allow-read-text-file",
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
