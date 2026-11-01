@@ -1,5 +1,18 @@
 <template>
-  <div class="wb-bar">
+  <div
+      ref="barEl"
+      :class="[`side-${barLayout.side}`, { floating: barLayout.floating }]"
+      :style="barLayout.floating ? { left: `${barLayout.x}px`, top: `${barLayout.y}px` } : undefined"
+      class="wb-bar"
+  >
+    <!-- 移动手柄（ToolMovable）：竖线，按住拖动整个工具栏，双击复位 -->
+    <div
+        v-if="settingsStore.settings.ToolMovable"
+        class="drag-handle"
+        title="按住拖动工具栏，双击复位"
+        @dblclick="resetBarPos"
+        @pointerdown="onHandleDown"
+    />
     <!-- 最左：菜单 / 最小化 -->
     <div class="group group-left">
       <div class="bar-group">
@@ -186,8 +199,8 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, inject} from 'vue';
-import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
+import {computed, inject, onBeforeUnmount, ref} from 'vue';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore, useSettingsStore,} from '@/store';
 import PenPanel from '@/components/PenPanel.vue';
 import EraserPanel from '@/components/EraserPanel.vue';
 import MenuPanel from '@/components/MenuPanel.vue';
@@ -203,6 +216,95 @@ const resolvedStoreId = props.storeId ?? injectedId ?? DEFAULT_STORE_ID;
 const pen = usePenStore(resolvedStoreId);
 
 const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
+const settingsStore = useSettingsStore();
+
+/* ==================== 工具栏布局：底部横向 / 侧边竖向 / 自由拖动 ==================== */
+
+const barEl = ref<HTMLElement | null>(null);
+
+/**
+ * 布局模式：
+ * - floating：被拖动手柄移动过，使用自由坐标（横向/竖向保持 barSide 的形态）
+ * - 否则按 barSide：bottom 横向底部；left/right 竖向贴边
+ */
+const barLayout = computed(() => {
+  const pos = settingsStore.barPos;
+  const side = settingsStore.barSide;
+  if (pos) return {floating: true as const, side, x: pos.x, y: pos.y};
+  return {floating: false as const, side, x: 0, y: 0};
+});
+
+/* ---- 拖动手柄（Pointer Events，兼容鼠标 / 触摸 / 手写笔） ---- */
+
+let dragging = false;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+
+function onHandleDown(e: PointerEvent) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const bar = barEl.value;
+  if (!bar) return;
+
+  // 停靠状态下 .wb-bar 是满宽容器，取各分组的并集矩形作为可视边界，避免首次拖动跳变
+  let rect: DOMRect = bar.getBoundingClientRect();
+  if (!settingsStore.barPos) {
+    const groups = bar.querySelectorAll('.group');
+    if (groups.length) {
+      let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+      groups.forEach((g) => {
+        const r = g.getBoundingClientRect();
+        left = Math.min(left, r.left);
+        top = Math.min(top, r.top);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
+      });
+      rect = new DOMRect(left, top, right - left, bottom - top);
+    }
+  }
+
+  dragging = true;
+  dragOffsetX = e.clientX - rect.left;
+  dragOffsetY = e.clientY - rect.top;
+
+  const target = e.currentTarget as HTMLElement;
+  try {
+    target.setPointerCapture(e.pointerId);
+  } catch {
+    /* 某些环境不支持捕获时忽略 */
+  }
+  window.addEventListener('pointermove', onHandleMove, true);
+  window.addEventListener('pointerup', onHandleUp, true);
+  window.addEventListener('pointercancel', onHandleUp, true);
+}
+
+function onHandleMove(e: PointerEvent) {
+  if (!dragging) return;
+  const bar = barEl.value;
+  const w = bar?.offsetWidth ?? 0;
+  const h = bar?.offsetHeight ?? 0;
+  const x = Math.min(Math.max(e.clientX - dragOffsetX, 0), Math.max(window.innerWidth - w, 0));
+  const y = Math.min(Math.max(e.clientY - dragOffsetY, 0), Math.max(window.innerHeight - h, 0));
+  settingsStore.barPos = {x, y};
+}
+
+function onHandleUp() {
+  if (!dragging) return;
+  dragging = false;
+  window.removeEventListener('pointermove', onHandleMove, true);
+  window.removeEventListener('pointerup', onHandleUp, true);
+  window.removeEventListener('pointercancel', onHandleUp, true);
+}
+
+/** 双击手柄复位到停靠位置 */
+function resetBarPos() {
+  settingsStore.barPos = null;
+}
+
+onBeforeUnmount(() => {
+  onHandleUp();
+});
 
 /* ==================== 激活态 ==================== */
 
@@ -312,7 +414,7 @@ function onNext() {
 async function onAdd() {
   const inst = nwbRef?.value;
   if (!inst) return;
-  await inst.newPage();
+  await inst.newPage({bgcolor: settingsStore.settings.boardDefaultBgColor});
   inst.goTo(inst.getPageCount());
 }
 
@@ -436,6 +538,98 @@ function toggleDrawer() {
   height: 28px;
   background: rgba(0, 0, 0, 0.08);
   margin: 0 2px;
+}
+
+/* ==================== 侧边竖向模式（barSide = left/right） ==================== */
+
+.wb-bar.side-left,
+.wb-bar.side-right {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 0;
+}
+
+.wb-bar.side-left {
+  left: 0;
+  right: auto;
+}
+
+.wb-bar.side-right {
+  right: 0;
+  left: auto;
+}
+
+.wb-bar.side-left .group,
+.wb-bar.side-right .group {
+  flex-direction: column;
+}
+
+.wb-bar.side-left .bar-group,
+.wb-bar.side-right .bar-group {
+  flex-direction: column;
+}
+
+.wb-bar.side-left .bar-divider,
+.wb-bar.side-right .bar-divider {
+  width: 28px;
+  height: 1px;
+  margin: 2px 0;
+}
+
+/* ==================== 自由拖动（floating） ==================== */
+
+.wb-bar.floating {
+  right: auto;
+  bottom: auto;
+  transform: none;
+  padding: 0;
+}
+
+/* ==================== 拖动手柄（一条竖线） ==================== */
+
+.drag-handle {
+  pointer-events: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 5px;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drag-handle::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 36px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.18);
+  transition: background-color 140ms;
+}
+
+.drag-handle:hover::before {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 竖向模式下手柄变为横线，位于栏顶部 */
+.wb-bar.side-left .drag-handle,
+.wb-bar.side-right .drag-handle {
+  padding: 4px 12px;
+}
+
+.wb-bar.side-left .drag-handle::before,
+.wb-bar.side-right .drag-handle::before {
+  width: 36px;
+  height: 3px;
 }
 
 /* 页码按钮上半部分 */

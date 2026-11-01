@@ -40,7 +40,7 @@
 
 <script lang="ts" setup>
 import {computed, inject} from 'vue';
-import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore,} from '@/store';
+import {DEFAULT_STORE_ID, NWB_INSTANCE_KEY, PANEL_STORE_KEY, usePenStore, useSettingsStore,} from '@/store';
 
 const props = defineProps<{ storeId?: string }>();
 
@@ -49,6 +49,7 @@ const resolvedStoreId = props.storeId ?? injectedId ?? DEFAULT_STORE_ID;
 const pen = usePenStore(resolvedStoreId);
 
 const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
+const settingsStore = useSettingsStore();
 
 const isLastPage = computed(() => pen.pageIndex >= pen.pageCount);
 
@@ -63,7 +64,7 @@ function onNext() {
 async function onAdd() {
   const inst = nwbRef?.value;
   if (!inst) return;
-  await inst.newPage();
+  await inst.newPage({bgcolor: settingsStore.settings.boardDefaultBgColor});
   inst.goTo(inst.getPageCount());
 }
 

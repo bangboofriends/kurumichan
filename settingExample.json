@@ -6,5 +6,6 @@
   "spPenToolBuiltinPatterns": {},
   "penToolDefaultSize": 4,
   "enableToolTipMoveWithWrite": false,
+  "ToolMovable": false,
   "ocrMode": "be"
 }

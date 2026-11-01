@@ -12,7 +12,7 @@ document.addEventListener('contextmenu', function(e) {
 });
 
 import {onBeforeUnmount, onMounted, provide, ref} from 'vue';
-import {PANEL_STORE_KEY, usePenStore} from '@/store';
+import {PANEL_STORE_KEY, usePenStore, useSettingsStore} from '@/store';
 import {useNwb} from '@/composables/useNwb';
 import WhiteBoardBar from '@/components/WhiteBoardBar.vue';
 
@@ -21,6 +21,7 @@ provide(PANEL_STORE_KEY, STORE_ID);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const pen = usePenStore(STORE_ID);
+const settingsStore = useSettingsStore();
 
 const {actions} = useNwb({
   canvasRef,
@@ -112,14 +113,46 @@ async function handleExit() {
   await handleClose();
 }
 
+/**
+ * 工具栏跟随书写侧（仅 WhiteBoard 生效，HomeWorkBoard 不启用）：
+ * 统计最近 15s 内画布上按下/拖动的指针位置，
+ * 若 ≥60% 集中在左/右 1/3 区域，则把工具栏移到对应侧（竖向）。
+ */
+const writeSamples: { x: number; t: number }[] = [];
+let lastEvalAt = 0;
+
+function onWritePointer(e: PointerEvent) {
+  if (!settingsStore.settings.enableToolTipMoveWithWrite) return;
+  // 只统计画布上的指针（点击面板/按钮不算书写）
+  if (!(e.target instanceof HTMLCanvasElement)) return;
+  // pointermove 仅统计按住（含触摸/笔）状态
+  if (e.type === 'pointermove' && !(e.buttons & 1)) return;
+  const now = performance.now();
+  writeSamples.push({x: e.clientX / window.innerWidth, t: now});
+  const cutoff = now - 15000;
+  while (writeSamples.length && writeSamples[0].t < cutoff) writeSamples.shift();
+  if (writeSamples.length < 30) return;      // 样本不足，不判断
+  if (now - lastEvalAt < 2000) return;       // 2s 评估一次，防抖
+  lastEvalAt = now;
+  const left = writeSamples.filter((s) => s.x < 1 / 3).length;
+  const right = writeSamples.filter((s) => s.x > 2 / 3).length;
+  const n = writeSamples.length;
+  settingsStore.barSide =
+      left / n >= 0.6 ? 'left' : right / n >= 0.6 ? 'right' : 'bottom';
+}
+
 onMounted(() => {
   window.addEventListener('nwb:clear-page', handleClearPage);
   window.addEventListener('nwb:command', handleCommand as EventListener);
+  window.addEventListener('pointerdown', onWritePointer, true);
+  window.addEventListener('pointermove', onWritePointer, {capture: true, passive: true});
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('nwb:clear-page', handleClearPage);
   window.removeEventListener('nwb:command', handleCommand as EventListener);
+  window.removeEventListener('pointerdown', onWritePointer, true);
+  window.removeEventListener('pointermove', onWritePointer, true);
 });
 </script>
 
