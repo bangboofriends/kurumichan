@@ -1,18 +1,33 @@
 <template>
   <div :class="`side-${side}`" class="menu-panel">
     <div class="panel-body">
-      <button :disabled="busy" class="row" @click="handleExport">
-        <span class="i-mingcute-download-2-line" style="font-size: 20px"/>
-        <span>{{ busy ? '处理中…' : '保存' }}</span>
-      </button>
-      <div ref="importWrapRef" class="import-wrap">
-        <button :disabled="busy" class="row" @click="toggleImportMenu">
+      <div ref="saveWrapRef" class="pop-wrap">
+        <button :disabled="busy" class="row" @click="toggleMenu('save')">
+          <span class="i-mingcute-download-2-line" style="font-size: 20px"/>
+          <span>{{ busy ? '处理中…' : '保存' }}</span>
+          <span :class="popSide === 'right' ? 'i-mingcute-right-line' : 'i-mingcute-left-line'" class="arrow"/>
+        </button>
+        <Transition name="submenu">
+          <div v-if="openMenu === 'save'" :class="`pop-${popSide}`" class="sub-menu">
+            <button :disabled="busy" class="row" @click="handleSaveKrmc">
+              <span class="i-mingcute-file-line" style="font-size: 20px"/>
+              <span>保存krmc</span>
+            </button>
+            <button :disabled="busy" class="row" @click="handleSaveImages">
+              <span class="i-mingcute-pic-line" style="font-size: 20px"/>
+              <span>保存为图片</span>
+            </button>
+          </div>
+        </Transition>
+      </div>
+      <div ref="importWrapRef" class="pop-wrap">
+        <button :disabled="busy" class="row" @click="toggleMenu('import')">
           <span class="i-mingcute-upload-2-line" style="font-size: 20px"/>
           <span>导入</span>
           <span :class="popSide === 'right' ? 'i-mingcute-right-line' : 'i-mingcute-left-line'" class="arrow"/>
         </button>
         <Transition name="submenu">
-          <div v-if="importMenuOpen" :class="`pop-${popSide}`" class="import-menu">
+          <div v-if="openMenu === 'import'" :class="`pop-${popSide}`" class="sub-menu">
             <button :disabled="busy" class="row" @click="handleImportKrmc">
               <span class="i-mingcute-file-line" style="font-size: 20px"/>
               <span>导入krmc</span>
@@ -57,32 +72,56 @@ const pen = usePenStore(resolvedStoreId);
 
 const nwbRef = inject<{ value: any } | null>(NWB_INSTANCE_KEY, null);
 
-/** 导出 / 导入中，避免重复触发 */
+/** 保存 / 导入中，避免重复触发 */
 const busy = ref(false);
 
-/** 导入子菜单开关 */
-const importMenuOpen = ref(false);
+/** 当前打开的子菜单 */
+const openMenu = ref<'save' | 'import' | null>(null);
+const saveWrapRef = ref<HTMLElement | null>(null);
 const importWrapRef = ref<HTMLElement | null>(null);
 
 /** 子菜单弹出方向：面板在屏幕右侧时向左弹，避免超出屏幕 */
 const popSide = computed(() => (props.side === 'right' ? 'left' : 'right'));
 
-function toggleImportMenu() {
-  importMenuOpen.value = !importMenuOpen.value;
+function toggleMenu(kind: 'save' | 'import') {
+  openMenu.value = openMenu.value === kind ? null : kind;
 }
 
 function onWindowPointerDown(e: PointerEvent) {
-  if (!importMenuOpen.value) return;
-  const el = importWrapRef.value;
-  if (el && e.target instanceof Node && !el.contains(e.target)) {
-    importMenuOpen.value = false;
+  if (!openMenu.value) return;
+  const wraps = [saveWrapRef.value, importWrapRef.value];
+  if (e.target instanceof Node && wraps.every((el) => el && !el.contains(e.target as Node))) {
+    openMenu.value = null;
   }
 }
 
 onMounted(() => window.addEventListener('pointerdown', onWindowPointerDown, true));
 onBeforeUnmount(() => window.removeEventListener('pointerdown', onWindowPointerDown, true));
 
-async function handleExport() {
+/* ==================== Tauri / 工具函数 ==================== */
+
+function isTauri(): boolean {
+  return !!(window as any).__TAURI_INTERNALS__;
+}
+
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function downloadHref(href: string, name: string) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function handleSaveKrmc() {
   const inst = nwbRef?.value;
   if (!inst || busy.value) return;
 
@@ -111,17 +150,75 @@ async function handleExport() {
       strictRemote: true,
     });
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `whiteboard-${Date.now()}.krmc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const fileName = `whiteboard-${Date.now()}.krmc`;
+
+    if (isTauri()) {
+      // Tauri：弹出系统保存对话框，由用户选择位置和文件名
+      const {save} = await import('@tauri-apps/plugin-dialog');
+      const {writeFile} = await import('@tauri-apps/plugin-fs');
+      const path = await save({
+        title: '保存白板',
+        defaultPath: fileName,
+        filters: [{name: 'kurumichan 白板', extensions: ['krmc']}],
+      });
+      if (!path) return; // 用户取消
+      await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
+    } else {
+      // 浏览器：回退为下载
+      const url = URL.createObjectURL(blob);
+      downloadHref(url, fileName);
+      URL.revokeObjectURL(url);
+    }
   } catch (e) {
     console.error('[MenuPanel] 保存失败:', e);
     alert(`保存失败：${(e as Error).message}`);
+  } finally {
+    busy.value = false;
+    pen.panelKind = null;
+  }
+}
+
+async function handleSaveImages() {
+  const inst = nwbRef?.value;
+  if (!inst || busy.value) return;
+
+  busy.value = true;
+  try {
+    const urls: string[] = inst.renderHQImage('all', {scale: 2, format: 'png'});
+    if (!urls.length) {
+      console.warn('[MenuPanel] 保存图片：无页面内容');
+      return;
+    }
+
+    if (isTauri()) {
+      const {save, open} = await import('@tauri-apps/plugin-dialog');
+      const {writeFile} = await import('@tauri-apps/plugin-fs');
+
+      if (urls.length === 1) {
+        const path = await save({
+          title: '保存为图片',
+          defaultPath: `whiteboard-${Date.now()}.png`,
+          filters: [{name: 'PNG 图片', extensions: ['png']}],
+        });
+        if (!path) return; // 用户取消
+        await writeFile(path, dataUrlToBytes(urls[0]));
+      } else {
+        // 多页：让用户选一个目录，逐页写出
+        const dir = await open({title: '选择保存目录', directory: true});
+        if (!dir) return; // 用户取消
+        const {join} = await import('@tauri-apps/api/path');
+        for (let i = 0; i < urls.length; i++) {
+          const p = await join(dir as string, `page-${i + 1}.png`);
+          await writeFile(p, dataUrlToBytes(urls[i]));
+        }
+        alert(`已保存 ${urls.length} 张图片`);
+      }
+    } else {
+      urls.forEach((url, i) => downloadHref(url, `page-${i + 1}.png`));
+    }
+  } catch (e) {
+    console.error('[MenuPanel] 保存图片失败:', e);
+    alert(`保存图片失败：${(e as Error).message}`);
   } finally {
     busy.value = false;
     pen.panelKind = null;
@@ -295,11 +392,11 @@ function openSub(kind: 'about' | 'settings') {
   margin: 6px 8px;
 }
 
-.import-wrap {
+.pop-wrap {
   position: relative;
 }
 
-.import-menu {
+.sub-menu {
   position: absolute;
   top: 0;
   width: 180px;
@@ -315,12 +412,12 @@ function openSub(kind: 'about' | 'settings') {
   z-index: 100;
 }
 
-.import-menu.pop-right {
+.sub-menu.pop-right {
   left: calc(100% + 6px);
   transform-origin: left center;
 }
 
-.import-menu.pop-left {
+.sub-menu.pop-left {
   right: calc(100% + 6px);
   transform-origin: right center;
 }

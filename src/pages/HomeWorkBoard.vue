@@ -99,14 +99,15 @@ function handleImport() {
  * - Tauri 环境：调用 Tauri API 让窗口最小化到任务栏 / 桌面
  * - 浏览器：没有窗口 API，仅记录日志（避免 UI 消失无法恢复）
  */
+function isTauri(): boolean {
+  return !!(window as any).__TAURI_INTERNALS__;
+}
+
 async function handleMinimize() {
-  const anyWin = window as any;
-  if (anyWin.__TAURI__) {
+  if (isTauri()) {
     try {
-      // Tauri v2:
-      // const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      // await getCurrentWindow().minimize();
-      console.log('[nWb] Tauri minimize (placeholder)');
+      const {getCurrentWindow} = await import('@tauri-apps/api/window');
+      await getCurrentWindow().minimize();
       return;
     } catch (e) {
       console.warn('[nWb] Tauri minimize failed:', e);
@@ -115,18 +116,22 @@ async function handleMinimize() {
   console.log('[nWb] minimize requested (browser: no-op)');
 }
 
-function handleClose() {
-  console.log('[nWb] close requested');
-  // 后续接入 Tauri：
-  // import { getCurrentWindow } from '@tauri-apps/api/window';
-  // getCurrentWindow().close();
+async function handleClose() {
+  if (isTauri()) {
+    try {
+      const {getCurrentWindow} = await import('@tauri-apps/api/window');
+      await getCurrentWindow().close();
+      return;
+    } catch (e) {
+      console.warn('[nWb] Tauri close failed:', e);
+    }
+  }
+  window.close();
 }
 
-function handleExit() {
-  console.log('[nWb] exit requested');
-  // 可选：Tauri 退出应用
-  // import { exit } from '@tauri-apps/plugin-process';
-  // exit(0);
+async function handleExit() {
+  // 单窗口应用：关闭窗口即退出
+  await handleClose();
 }
 
 onMounted(() => {

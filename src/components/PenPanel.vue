@@ -11,35 +11,50 @@
     </div>
 
     <div v-if="tab === 'brush'" class="panel-body brush-tab">
-      <div class="size-col">
-        <span class="label">粗细</span>
-        <div class="size-slider-wrap">
-          <input
-              :max="40"
-              :min="1"
-              :value="pen.thick" class="size-slider" step="1"
-              type="range"
-              @input="onThickChange"
-          />
-          <div class="size-preview">
-            <div :style="previewDotStyle" class="size-dot"></div>
+      <div class="brush-main">
+        <div class="size-col">
+          <span class="label">粗细</span>
+          <div class="size-slider-wrap">
+            <input
+                :max="40"
+                :min="1"
+                :value="pen.thick" class="size-slider" step="1"
+                type="range"
+                @input="onThickChange"
+            />
+            <div class="size-preview">
+              <div :style="previewDotStyle" class="size-dot"></div>
+            </div>
+          </div>
+          <span class="size-value">{{ pen.thick }}</span>
+        </div>
+
+        <div class="color-col">
+          <span class="label">颜色</span>
+          <div class="color-grid">
+            <button
+                v-for="c in PRESET_COLORS"
+                :key="c"
+                :class="{ active: pen.color === c, 'is-white': c.toLowerCase() === '#ffffff' }"
+                :style="{ background: c }"
+                class="color-swatch"
+                @click="pen.color = c"
+            ></button>
           </div>
         </div>
-        <span class="size-value">{{ pen.thick }}</span>
       </div>
 
-      <div class="color-col">
-        <span class="label">颜色</span>
-        <div class="color-grid">
-          <button
-              v-for="c in PRESET_COLORS"
-              :key="c"
-              :class="{ active: pen.color === c, 'is-white': c.toLowerCase() === '#ffffff' }"
-              :style="{ background: c }"
-              class="color-swatch"
-              @click="pen.color = c"
-          ></button>
-        </div>
+      <div class="preset-row">
+        <button
+            v-for="t in THICK_PRESETS"
+            :key="t"
+            :class="{ active: pen.thick === t }"
+            class="preset-btn"
+            @click="pen.thick = t"
+        >
+          <span :style="{ width: `${Math.min(t, 18)}px`, height: `${Math.min(t, 18)}px` }" class="preset-dot"></span>
+          <span class="preset-num">{{ t }}</span>
+        </button>
       </div>
     </div>
 
@@ -75,6 +90,9 @@ const PRESET_COLORS = [
   '#34C759', '#30D158', '#FF2D55',
   '#A2845E', '#8E8E93',
 ];
+
+/** 笔粗细预设，一键切换 */
+const THICK_PRESETS = [2, 4, 6, 8, 12, 16];
 
 const previewDotStyle = computed(() => ({
   width: `${Math.min(pen.thick, 40)}px`,
@@ -187,7 +205,63 @@ function close() {
 
 .brush-tab {
   display: flex;
+  flex-direction: column;
+}
+
+.brush-main {
+  display: flex;
   gap: 20px;
+}
+
+.preset-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.preset-btn {
+  flex: 1;
+  height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.03);
+  color: #1D1D1F;
+  cursor: pointer;
+  transition: background-color 140ms, box-shadow 140ms;
+  -webkit-tap-highlight-color: transparent;
+  font-family: inherit;
+}
+
+.preset-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.preset-btn.active {
+  background: rgba(52, 199, 89, 0.12);
+  box-shadow: 0 0 0 1.5px #34C759;
+  color: #1E9E4A;
+}
+
+.preset-dot {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.preset-num {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #8E8E93;
+}
+
+.preset-btn.active .preset-num {
+  color: #1E9E4A;
 }
 
 .size-col {

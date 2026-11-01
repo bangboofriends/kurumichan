@@ -2,8 +2,8 @@ import {createRouter, createWebHistory, type RouteRecordRaw} from "vue-router";
 
 const routes: RouteRecordRaw[] = [
     {
-        path: '/',
-        name: 'wb',
+        path: '/dmb',
+        name: 'dmbwb',
         component: () => import("@/pages/DefaultMaybe.vue"),
         meta: {title: "白板"}
     },
@@ -24,6 +24,12 @@ const routes: RouteRecordRaw[] = [
         name: 'hwb',
         component: () => import("@/pages/HomeWorkBoard.vue"),
         meta: {title: "作业板"}
+    },
+    {
+        path: '/',
+        name: 'whiteboard',
+        component: () => import("@/pages/WhiteBoard.vue"),
+        meta: {title: "白板"}
     },
 
 // 必须放最后！！！！！！

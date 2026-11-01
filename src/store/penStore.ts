@@ -3,7 +3,7 @@ import {ref, shallowRef} from 'vue';
 import type {nWbSpPenOptions, SerializedPage, ToolType} from '@/nWb';
 
 export type PanelKind =
-    | 'pen' | 'eraser' | 'menu' | 'about' | 'settings' | null;
+    | 'pen' | 'eraser' | 'menu' | 'about' | 'settings' | 'more' | null;
 
 export type PanelSide = 'left' | 'right' | 'center';
 

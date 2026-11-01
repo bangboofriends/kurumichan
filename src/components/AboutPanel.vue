@@ -10,10 +10,10 @@
       <div class="logo">
         <span class="i-mingcute-pen-line" style="font-size: 40px; color: #34C759"/>
       </div>
-      <h1 class="name">Smart Board</h1>
+      <h1 class="name">KurumiChan</h1>
       <p class="version">Version 1.0.0</p>
       <p class="desc">
-        一款轻量、高清、可无限延展的白板工具。<br>
+        老实做白板，很枯燥吧？<br>
         支持手掌擦除、矢量选区、高清导出。
       </p>
     </div>

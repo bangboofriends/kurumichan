@@ -1,3 +1,11 @@
 {
-
+  "handSizeValve": 500,
+  "eraserSize": 30,
+  "boardDefaultBgColor": "#ffffff",
+  "penToolDefaultColor": "#000",
+  "spPenToolBuiltinPatterns": {},
+  "penToolDefaultSize": 4,
+  "penToolSizePresets": [],
+  "enableToolTipMoveWithWrite": false,
+  "ocrMode": "be"
 }
