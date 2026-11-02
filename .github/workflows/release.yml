@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri (Windows)
+        run: npm run tauri build -- --bundles nsis,msi
+
+      - name: Verify video assets are bundled
+        shell: pwsh
+        run: |
+          $sentinel = 'dist/404ce/video/0/0.m3u8'
+          if (-not (Test-Path $sentinel)) {
+            throw "Video assets were not included in dist ($sentinel missing)"
+          }
+          Write-Host "Video assets found in dist, they will be embedded into the installer."
+
+      - name: Free build intermediates
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force 'dist', 'public/404ce', 'goodthings' -ErrorAction SilentlyContinue
+
+      - name: Package Windows artifacts
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          $outDir = Join-Path $PWD 'release'
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          $files = Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -File
+          if ($files.Count -eq 0) { throw 'No Windows bundle artifacts found' }
+
+          $sevenZip = '.\7z\7z.exe'
+          $zip = Join-Path $outDir "kurumichan_${version}_windows-x64.zip"
+          & $sevenZip a -tzip -mx=1 $zip @($files.FullName)
+          if ($LASTEXITCODE -ne 0) { throw "7z failed to create zip (exit $LASTEXITCODE)" }
+
+          $limitMB = 1900
+          $sizeMB = (Get-Item $zip).Length / 1MB
+          if ($sizeMB -gt $limitMB) {
+            Write-Host "zip is $([math]::Round($sizeMB, 1)) MB, exceeding ${limitMB} MB; creating split 7z volumes"
+            Remove-Item -Force $zip
+            $volumeBase = Join-Path $outDir "kurumichan_${version}_windows-x64.7z"
+            & $sevenZip a -t7z -mx=1 -v1900m $volumeBase @($files.FullName)
+            if ($LASTEXITCODE -ne 0) { throw "7z failed to create split volumes (exit $LASTEXITCODE)" }
+          }
+
+          Get-ChildItem -Path $outDir | Format-Table Name, Length
+
+      - name: Upload artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: |
+            release/*.zip
+            release/*.7z.*
+          fail_on_unmatched_files: false
+          generate_release_notes: true
